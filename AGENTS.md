@@ -98,6 +98,31 @@ items in general terms before promoting them (no coordinates, seeds or "our base
 - In solo mode nothing moves between your calls; in co-op everything does.
 - Session layout and options: `./fx session info`. Server log: `./fx server log`.
 
+## Changing the harness or its docs
+
+Who reads what:
+
+| File | Reader | Holds |
+|---|---|---|
+| `README.md` | anyone landing on the repo | what it is, links; keep it short |
+| `docs/USER_GUIDE.md` | players, no programming assumed | requirements, install, solo, co-op, sessions, safety, troubleshooting; no internals |
+| `AGENTS.md` (this file) | agents | how to play, rules, how to maintain things |
+| `docs/DESIGN.md` | developers | architecture, the safety table, decisions with their reasons, known limits |
+| `layers/*/knowledge/` | agents while playing | game knowledge, one topic per file, with the header described in `fxa/layers.py` |
+
+Rules:
+
+- A change to a command, option or behaviour updates `docs/USER_GUIDE.md` and this file in the
+  same commit if they mention it. `python3 -m unittest tests.test_docs` fails when a doc names a
+  command, action or option that does not exist, or links to a missing file.
+- Write only what is true and checked. Mark what is written but not tested as untested (as the
+  guide does for Windows and macOS), and remove claims a test disproves (hosting from the game window was dropped once a test showed it has no RCON).
+- A change to a safety mitigation updates the safety table in `docs/DESIGN.md`. Never document
+  a weaker rule than the code enforces, and never weaken the code to match a doc.
+- Keep the user guide in plain language: say what to type and what will happen. Exact
+  examples beat descriptions. Give Windows variants where a command differs.
+- Bump `fxa/__init__.py` `GAME_TESTED` only after `./fx selftest` passed on that version.
+
 ## Where things are
 
 - `fxa/` the Python harness (stdlib only). `fxa/cli.py` is the `fx` command.

@@ -24,9 +24,11 @@ game server, so it is not a game client. Only the humans who join need their own
 ```
 git clone <repository URL> factorio-agent
 cd factorio-agent
-./fx doctor          # Windows (cmd or PowerShell): fx.cmd doctor
+./fx doctor          # Windows cmd: fx.cmd doctor   PowerShell: .\fx.cmd doctor
 ./fx setup           # finds Factorio in the usual places and remembers it
 ```
+
+The rest of this guide writes `./fx`; on Windows use `fx.cmd` (cmd) or `.\fx.cmd` (PowerShell).
 
 If `setup` does not find the game, give the folder that contains `bin/` and `data/`:
 
@@ -36,8 +38,8 @@ If `setup` does not find the game, give the folder that contains `bin/` and `dat
 ./fx setup --game ~/factorio --server-game ~/factorio-headless   # separate server build (Linux)
 ```
 
-`./fx doctor` should now say "all good". Optionally run `./fx selftest` (about a minute): it
-plays a throwaway map and checks that everything works with your version of the game.
+`./fx doctor` should now say "all good". Optionally run `./fx selftest` (well under a minute):
+it plays a throwaway map and checks that everything works with your version of the game.
 
 ## Playing with the agent
 
@@ -49,6 +51,18 @@ Open your agent in the `factorio-agent` folder and tell it what you want, for ex
 
 The agent reads `AGENTS.md` and does the rest with `fx` commands. You can always run the same
 commands yourself.
+
+- **Permissions.** Your agent asks before running commands. Allowing `./fx` commands for the
+  folder (in Claude Code, "always allow" on the first `./fx` prompt) keeps a game flowing. Leave the
+  prompts on for anything else.
+- **The agent only plays while it is running.** It reads the game chat and acts while its turn in
+  your terminal is going. When it stops (it finished, hit a usage limit, or you interrupted it),
+  your character keeps playing but nobody answers in the game. Type in the agent's window to
+  get it going again.
+- **Stopping.** Tell the agent "stop and save". It writes a checkpoint, updates the session's
+  `NOTES.md` and stops the server. `./fx server stop` also saves the map. **Resuming:** "resume
+  our game" (or `./fx session use NAME` then `./fx server start`). The agent reads `NOTES.md` to
+  pick up where it left off.
 
 ### Watching a solo game
 
@@ -65,7 +79,8 @@ The agent creates a co-op session like this (you can do it yourself too):
 ./fx session new ourgame --mode coop --agent-name Claude --admin YourPlayerName
 ```
 
-- **You** join with `./fx join`, or Multiplayer > Connect to address `127.0.0.1:34197`.
+- **You** join with Multiplayer > Connect to address `127.0.0.1:34197` (or `./fx join`, which
+  opens your game already connecting; it only works while the game is closed).
 - **Friends on your network** see the game in the LAN list, or connect to your machine's address.
 - **Friends over the internet** connect to your public address after you forward UDP 34197 on
   your router, or to your VPN address (Tailscale, ZeroTier). Set a game password first:
@@ -73,7 +88,8 @@ The agent creates a co-op session like this (you can do it yourself too):
 - **Talking to the agent**: type in the game chat. Mention its name ("Claude, can you build
   power?") to get its attention right away. Map pings (`[gps=...]`, Alt+click on the map) are
   understood as coordinates. It answers in chat.
-- **Admins**: names given with `--admin` can pause, kick, ban and use console commands.
+- **Admins**: names given with `--admin` can pause, kick, ban and use console commands. To add
+  one later: `./fx session set --admin NAME` then `./fx server restart`.
 - **Logins**: by default players must be logged in to Factorio (Steam or factorio.com). This
   protects admin names. For an offline LAN game use `--no-verify`.
 - When everyone leaves, the server pauses itself, and the agent waits. `--no-auto-pause` keeps the
