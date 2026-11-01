@@ -1,4 +1,5 @@
-"""The skill sandbox: the language subset works, and nothing outside it is reachable."""
+"""The skill sandbox: the language subset works, and nothing outside it is
+reachable."""
 
 import unittest
 
@@ -8,7 +9,9 @@ from fxa.sandbox import Interpreter, SandboxError
 
 def run(source, host=None, **budget):
     out = []
-    interp = Interpreter(host or {}, budget=sandbox.Budget(**budget), output=out.append)
+    interp = Interpreter(
+        host or {}, budget=sandbox.Budget(**budget), output=out.append
+    )
     scope = interp.run(source)
     return scope, "".join(out), interp
 
@@ -23,7 +26,9 @@ class LanguageTest(unittest.TestCase):
         self.assertEqual(value("result = (2 + 3) * 4 // 3 - 1"), 5)
         self.assertEqual(value("result = 7 / 2"), 3.5)
         self.assertEqual(value("result = f'{1 + 1}x{3.14159:.2f}'"), "2x3.14")
-        self.assertEqual(value("result = 'a,b'.split(',') + ['c']"), ["a", "b", "c"])
+        self.assertEqual(
+            value("result = 'a,b'.split(',') + ['c']"), ["a", "b", "c"]
+        )
         self.assertEqual(value("result = '-'.join(['x', 'y'])"), "x-y")
 
     def test_control_flow(self):
@@ -62,7 +67,9 @@ first, *middle, last = [1, 2, 3, 4, 5]
 evens = {x for x in range(6) if x % 2 == 0}
 result = (pairs, squares[3], middle, last, sorted(evens))
 """
-        self.assertEqual(value(src), ([(0, 1), (0, 2), (1, 2)], 9, [2, 3, 4], 5, [0, 2, 4]))
+        self.assertEqual(
+            value(src), ([(0, 1), (0, 2), (1, 2)], 9, [2, 3, 4], 5, [0, 2, 4])
+        )
 
     def test_data_methods(self):
         src = """
@@ -81,7 +88,14 @@ result = (sorted(d.keys()), d.get("z", 0), xs, max([1, 5, 2], key=lambda v: -v))
         def remember(x, flag=None):
             seen.append((x, flag))
             return {"echo": x}
-        self.assertEqual(value("result = remember([1, (2, 3)], flag=True)", {"remember": remember}), {"echo": [1, [2, 3]]})
+
+        self.assertEqual(
+            value(
+                "result = remember([1, (2, 3)], flag=True)",
+                {"remember": remember},
+            ),
+            {"echo": [1, [2, 3]]},
+        )
         self.assertEqual(seen, [([1, [2, 3]], True)])
 
     def test_print_is_captured_and_cleaned(self):
@@ -146,7 +160,10 @@ class EscapeTest(unittest.TestCase):
         class Secret:
             password = "hunter2"
 
-        result = value("result = leak()", {"leak": lambda: {"obj": Secret(), "list": [Secret]}})
+        result = value(
+            "result = leak()",
+            {"leak": lambda: {"obj": Secret(), "list": [Secret]}},
+        )
         self.assertIsInstance(result["obj"], str)
         self.assertIsInstance(result["list"][0], str)
 

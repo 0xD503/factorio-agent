@@ -1,6 +1,6 @@
-# Offline tests on Linux, Windows and macOS with the oldest and newest supported Python, and
-# the live selftest on Linux with the free headless server. Written before the repository had
-# a remote: not run yet.
+# Offline tests on Linux, Windows and macOS with the oldest and newest
+# supported Python, and the live selftest on Linux with the free headless
+# server. Written before the repository had a remote: not run yet.
 name: tests
 
 on:
@@ -21,8 +21,9 @@ jobs:
                 with:
                     python-version: ${{ matrix.python }}
             -   run: python -m unittest discover -s tests -v
+            # No game on the runner: this only checks that the CLI starts.
             -   run: python fx.py doctor
-                continue-on-error: true    # no game on the runner; checks that the CLI starts on every OS
+                continue-on-error: true
 
     selftest:
         runs-on: ubuntu-latest
@@ -33,7 +34,11 @@ jobs:
                     python-version: "3.12"
             -   name: Download the Factorio headless server
                 run: |
-                    curl -fsSL -o headless.tar.xz https://factorio.com/get-download/stable/headless/linux64
-                    mkdir -p "$RUNNER_TEMP/factorio" && tar -xJf headless.tar.xz -C "$RUNNER_TEMP/factorio"
-            -   run: python fx.py setup --server-game "$RUNNER_TEMP/factorio/factorio"
+                    url=https://factorio.com/get-download/stable/headless
+                    curl -fsSL -o headless.tar.xz "$url/linux64"
+                    mkdir -p "$RUNNER_TEMP/factorio"
+                    tar -xJf headless.tar.xz -C "$RUNNER_TEMP/factorio"
+            -   run: |
+                    python fx.py setup \
+                        --server-game "$RUNNER_TEMP/factorio/factorio"
             -   run: python fx.py selftest

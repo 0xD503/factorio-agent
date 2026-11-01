@@ -1,13 +1,18 @@
 """Refuel burner machines and collect what furnaces made, in one round.
 
-Coal drills keep 5 coal for themselves and give up the rest; every other burner machine is
-topped up to `fuel` coal, emptiest first, as far as the coal goes; then furnace output is
-taken. Returns a summary.
+Coal drills keep 5 coal for themselves and give up the rest; every other burner
+machine is topped up to `fuel` coal, emptiest first, as far as the coal goes;
+then furnace output is taken. Returns a summary.
 """
 
 META = {
-    "params": {"x": "centre (default: the character)", "y": "centre", "r": "radius, default 30",
-               "fuel": "coal to top each machine up to, default 10", "collect": "take furnace output, default true"},
+    "params": {
+        "x": "centre (default: the character)",
+        "y": "centre",
+        "r": "radius, default 30",
+        "fuel": "coal to top each machine up to, default 10",
+        "collect": "take furnace output, default true",
+    },
     "requires": ["burner-mining-drill", "stone-furnace", "coal"],
     "game": ">=2.0",
     "verified": "2.0.77",
@@ -17,7 +22,8 @@ COAL_DRILL_RESERVE = 5
 
 
 def plan(found, coal_on_hand, fuel=10, collect=True):
-    """Orders for one round and a summary, from entity descriptions (fx ents)."""
+    """Orders for one round and a summary, from entity descriptions (fx
+    ents)."""
     takes, needs, collects = [], [], []
     for e in found:
         if "fuel" not in e:
@@ -48,8 +54,13 @@ def plan(found, coal_on_hand, fuel=10, collect=True):
         if give < want:
             short += 1
     orders += [take(x, y) for x, y in collects]
-    summary = {"coal_on_hand": coal_on_hand, "from_coal_drills": from_drills, "refuelled": fed,
-               "left_short": short, "collected_from": len(collects)}
+    summary = {
+        "coal_on_hand": coal_on_hand,
+        "from_coal_drills": from_drills,
+        "refuelled": fed,
+        "left_short": short,
+        "collected_from": len(collects),
+    }
     return orders, summary
 
 
@@ -58,7 +69,9 @@ def main(x=None, y=None, r=30, fuel=10, collect=True):
     if x is None or y is None:
         x, y = ch.get("x", 0), ch.get("y", 0)
     coal = (ch.get("inventory") or {}).get("coal", 0)
-    orders, summary = plan(entities(x=x, y=y, r=r, limit=1000), coal, fuel, collect)
+    orders, summary = plan(
+        entities(x=x, y=y, r=r, limit=1000), coal, fuel, collect
+    )
     if orders:
         report = do(orders)
         summary["result"] = report["reason"]

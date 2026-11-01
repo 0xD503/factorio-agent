@@ -8,9 +8,11 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 indent_style = space
 indent_size = 4
+max_line_length = 80
 
 [*.md]
-# Two trailing spaces are a line break in Markdown.
+# Two trailing spaces are a line break in Markdown. Table rows cannot be
+# wrapped, so they may exceed max_line_length (tests/test_style.py allows it).
 trim_trailing_whitespace = false
 
 [*.cmd]
@@ -20,4 +22,5 @@ end_of_line = crlf
 [LICENSE]
 # The canonical Apache 2.0 text, kept byte for byte.
 indent_size = unset
+max_line_length = unset
 trim_trailing_whitespace = false

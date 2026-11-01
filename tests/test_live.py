@@ -1,8 +1,9 @@
 """End-to-end tests against the real game, in a throwaway session.
 
-Run with `fx selftest` (or FXA_LIVE=1 python3 -m unittest tests.test_live). Each run makes a
-fresh fixed-seed map in a temporary FXA_HOME, using the configured server install. Setup may
-hand out items through the Lua console; that is only ever done in this test session.
+Run with `fx selftest` (or FXA_LIVE=1 python3 -m unittest tests.test_live). Each
+run makes a fresh fixed-seed map in a temporary FXA_HOME, using the configured
+server install. Setup may hand out items through the Lua console; that is only
+ever done in this test session.
 """
 
 import math
@@ -17,20 +18,31 @@ from fxa import install, savefile, server, session
 from fxa.game import Game, craft, mine, place, put, take, wait, walk
 
 SEED = 12345
-WALK_SPEED = 0.15       # tiles per tick
-ORE_TICKS = 120         # hand-mining one ore
-GEAR_TICKS = 30         # hand-crafting one gear
+WALK_SPEED = 0.15  # tiles per tick
+ORE_TICKS = 120  # hand-mining one ore
+GEAR_TICKS = 30  # hand-crafting one gear
 RESPAWN_TICKS = 600
 
 
-@unittest.skipUnless(os.environ.get("FXA_LIVE"), "live tests: run `fx selftest` (needs the game)")
+@unittest.skipUnless(
+    os.environ.get("FXA_LIVE"), "live tests: run `fx selftest` (needs the game)"
+)
 class LiveTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.install = install.configured("server")          # from the user's settings, before FXA_HOME moves
+        cls.install = install.configured(
+            "server"
+        )  # from the user's settings, before FXA_HOME moves
         cls.tmp = tempfile.TemporaryDirectory(prefix="fxa-selftest-")
-        cls.env = {k: os.environ.get(k) for k in ("FXA_HOME", "FXA_SESSION", "FACTORIO_SERVER")}
-        os.environ.update(FXA_HOME=cls.tmp.name, FXA_SESSION="", FACTORIO_SERVER=str(cls.install.binary))
+        cls.env = {
+            k: os.environ.get(k)
+            for k in ("FXA_HOME", "FXA_SESSION", "FACTORIO_SERVER")
+        }
+        os.environ.update(
+            FXA_HOME=cls.tmp.name,
+            FXA_SESSION="",
+            FACTORIO_SERVER=str(cls.install.binary),
+        )
         cls.session = session.create("selftest", agent_name="Tester", seed=SEED)
         cls.srv = server.Server(cls.session)
         cls.srv.create_map(cls.install, "live", seed=SEED)
@@ -60,7 +72,11 @@ class LiveTest(unittest.TestCase):
 
     def give(self, **items):
         for name, count in items.items():
-            self.lua(f"storage.agent.character.insert{{name='{name.replace('_', '-')}', count={count}}}")
+            item = name.replace("_", "-")
+            self.lua(
+                "storage.agent.character.insert"
+                f"{{name='{item}', count={count}}}"
+            )
 
     def character(self):
         return self.game.state()["character"]
@@ -89,11 +105,17 @@ class LiveTest(unittest.TestCase):
         state = self.game.call("state")
         self.assertEqual(state["character"]["guns"], {"pistol": 1})
         scan = self.game.call("scan", x=0, y=0, r=60)
-        in_wrecks = sum(box["items"].get("iron-plate", 0) for box in scan["containers"])
+        in_wrecks = sum(
+            box["items"].get("iron-plate", 0) for box in scan["containers"]
+        )
         on_hand = state["character"]["inventory"].get("iron-plate", 0)
         self.assertEqual(in_wrecks + on_hand, 8)
-        total_ammo = state["character"]["ammo"].get("firearm-magazine", 0) + sum(
-            box["items"].get("firearm-magazine", 0) for box in scan["containers"])
+        total_ammo = state["character"]["ammo"].get(
+            "firearm-magazine", 0
+        ) + sum(
+            box["items"].get("firearm-magazine", 0)
+            for box in scan["containers"]
+        )
         self.assertEqual(total_ammo, 10)
 
     def test_02_paused_between_calls(self):
@@ -105,8 +127,11 @@ class LiveTest(unittest.TestCase):
         self.assertEqual(self.game.state()["tick"], report.tick)
 
     def test_03_only_base_game(self):
-        mods = self.lua("local names = {}; for name in pairs(script.active_mods) do names[#names + 1] = name end;"
-                        " table.sort(names); rcon.print(table.concat(names, ','))")
+        mods = self.lua(
+            "local names = {}; for name in pairs(script.active_mods) do "
+            "names[#names + 1] = name end;"
+            " table.sort(names); rcon.print(table.concat(names, ','))"
+        )
         self.assertEqual(mods, "base")
 
     # -- actions cost what they cost a player --------------------------------
@@ -120,7 +145,9 @@ class LiveTest(unittest.TestCase):
     def test_11_mining_ore_takes_time_and_reach(self):
         ore = self.nearest("iron-ore")
         before = self.count("iron-ore")
-        report = self.do(mine(ore["x"], ore["y"], name="iron-ore", count=3, radius=4))
+        report = self.do(
+            mine(ore["x"], ore["y"], name="iron-ore", count=3, radius=4)
+        )
         self.assertEqual(self.count("iron-ore") - before, 3)
         self.assertGreaterEqual(report.results[0]["ticks"], 3 * ORE_TICKS)
         self.assertLess(self.distance_to(ore["x"], ore["y"]), 4 + 2.7)
@@ -150,12 +177,16 @@ class LiveTest(unittest.TestCase):
         failed = self.game.do(place("stone-furnace", *spot))
         self.assertFalse(failed.ok)
         self.assertIn("no stone-furnace", failed.failures[0]["error"])
-        self.assertEqual(self.game.call("entities", x=spot[0], y=spot[1], r=3)["total"], 0)
+        self.assertEqual(
+            self.game.call("entities", x=spot[0], y=spot[1], r=3)["total"], 0
+        )
 
         self.give(stone_furnace=1)
         self.do(place("stone-furnace", *spot))
         self.assertEqual(self.count("stone-furnace"), 0)
-        built = self.game.call("entities", x=spot[0], y=spot[1], r=3)["entities"]
+        built = self.game.call("entities", x=spot[0], y=spot[1], r=3)[
+            "entities"
+        ]
         self.assertEqual([e["name"] for e in built], ["stone-furnace"])
 
     def test_15_far_actions_walk_into_reach_first(self):
@@ -171,10 +202,16 @@ class LiveTest(unittest.TestCase):
     def test_16_smelting_and_collecting(self):
         furnace = self.game.call("find", name="stone-furnace")["found"][0]
         x, y = furnace["x"], furnace["y"]
-        self.do(put(x, y, "iron-ore", 4), wait(item="iron-plate", count=4, x=x, y=y, max=2000), take(x, y))
+        self.do(
+            put(x, y, "iron-ore", 4),
+            wait(item="iron-plate", count=4, x=x, y=y, max=2000),
+            take(x, y),
+        )
         self.assertEqual(self.count("iron-plate"), 4)
         self.assertEqual(self.count("iron-ore"), 0)
-        made = self.game.call("production", names={"iron-plate": True})["items"]["iron-plate"]["made"]
+        made = self.game.call("production", names={"iron-plate": True})[
+            "items"
+        ]["iron-plate"]["made"]
         self.assertEqual(made, 4)
 
     def test_17_cannot_give_more_than_it_has(self):
@@ -185,7 +222,10 @@ class LiveTest(unittest.TestCase):
 
     def test_18_failure_drops_later_orders(self):
         here = self.character()
-        report = self.game.do(place("lab", round(here["x"]) + 2, round(here["y"])), walk(here["x"] + 30, here["y"]))
+        report = self.game.do(
+            place("lab", round(here["x"]) + 2, round(here["y"])),
+            walk(here["x"] + 30, here["y"]),
+        )
         self.assertEqual(report.reason, "order failed")
         self.assertEqual(report.dropped, 1)
         self.assertLess(self.distance_to(here["x"], here["y"]), 1)
@@ -193,19 +233,47 @@ class LiveTest(unittest.TestCase):
     def test_19_machine_orders(self):
         here = self.character()
         x, y = round(here["x"]) + 6.5, round(here["y"]) + 0.5
-        self.give(fast_inserter=1, assembling_machine_2=1, chemical_plant=1, iron_plate=20)
-        # Into the main inventory, as after looting a corpse (given directly, a gun goes to its slot).
-        self.lua("storage.agent.character.get_main_inventory().insert{name='submachine-gun', count=1}")
+        self.give(
+            fast_inserter=1,
+            assembling_machine_2=1,
+            chemical_plant=1,
+            iron_plate=20,
+        )
+        # Into the main inventory, as after looting a corpse (given directly, a
+        # gun goes to its slot).
+        self.lua(
+            "storage.agent.character.get_main_inventory()"
+            ".insert{name='submachine-gun', count=1}"
+        )
         self.do(place("fast-inserter", x, y, "w"))
         self.do({"type": "rotate", "x": x, "y": y, "dir": "s"})
-        self.assertEqual(self.game.call("entities", x=x, y=y, r=0.5)["entities"][0]["dir"], "s")
+        self.assertEqual(
+            self.game.call("entities", x=x, y=y, r=0.5)["entities"][0]["dir"],
+            "s",
+        )
         self.do({"type": "filter", "x": x, "y": y, "items": ["iron-plate"]})
-        self.assertEqual(self.game.call("entities", x=x, y=y, r=0.5)["entities"][0].get("filter"), "iron-plate")
+        self.assertEqual(
+            self.game.call("entities", x=x, y=y, r=0.5)["entities"][0].get(
+                "filter"
+            ),
+            "iron-plate",
+        )
         ax, ay = x + 4, y + 0.0
-        self.do(place("assembling-machine-2", ax, ay), {"type": "recipe", "x": ax, "y": ay, "recipe": "iron-gear-wheel"})
-        self.assertEqual(self.game.call("entities", x=ax, y=ay, r=1)["entities"][0]["recipe"], "iron-gear-wheel")
+        self.do(
+            place("assembling-machine-2", ax, ay),
+            {"type": "recipe", "x": ax, "y": ay, "recipe": "iron-gear-wheel"},
+        )
+        self.assertEqual(
+            self.game.call("entities", x=ax, y=ay, r=1)["entities"][0][
+                "recipe"
+            ],
+            "iron-gear-wheel",
+        )
         cx, cy = x + 4, y + 5
-        self.do(place("chemical-plant", cx, cy, recipe="lubricant"), {"type": "mirror", "x": cx, "y": cy})
+        self.do(
+            place("chemical-plant", cx, cy, recipe="lubricant"),
+            {"type": "mirror", "x": cx, "y": cy},
+        )
         self.do({"type": "equip", "item": "submachine-gun"})
         self.assertIn("submachine-gun", self.game.state()["character"]["guns"])
         plates = self.count("iron-plate")
@@ -219,11 +287,21 @@ class LiveTest(unittest.TestCase):
     def test_20_unseen_chunks_are_hidden(self):
         far = self.game.call("map", x=2000, y=2000, w=8, h=4)
         self.assertEqual(far["rows"], ["?" * 8] * 4)
-        self.lua("game.surfaces.nauvis.request_to_generate_chunks({2000, 2000}, 1);"
-                 " game.surfaces.nauvis.force_generate_chunk_requests();"
-                 " game.surfaces.nauvis.create_entity{name='stone-furnace', position={2000, 2000}, force='player'}")
-        self.assertEqual(self.game.call("find", name="stone-furnace", x=2000, y=2000, r=50)["found"], {})
-        self.assertEqual(self.game.call("entities", x=2000, y=2000, r=50)["total"], 0)
+        self.lua(
+            "game.surfaces.nauvis.request_to_generate_chunks({2000, 2000}, 1);"
+            " game.surfaces.nauvis.force_generate_chunk_requests();"
+            " game.surfaces.nauvis.create_entity{name='stone-furnace', "
+            "position={2000, 2000}, force='player'}"
+        )
+        self.assertEqual(
+            self.game.call("find", name="stone-furnace", x=2000, y=2000, r=50)[
+                "found"
+            ],
+            {},
+        )
+        self.assertEqual(
+            self.game.call("entities", x=2000, y=2000, r=50)["total"], 0
+        )
 
     def test_21_map_shows_the_character(self):
         rows = self.game.call("map", w=9, h=9)["rows"]
@@ -232,15 +310,29 @@ class LiveTest(unittest.TestCase):
     # -- things the game does for a player and we do for the character --------
 
     def test_30_hand_crafted_lab_unlocks_science(self):
-        self.lua("local f = game.forces.player; f.technologies['electronics'].researched = true;"
-                 " f.technologies['steam-power'].researched = true")
-        self.assertFalse(self.game.call("tech", name="automation-science-pack")["researched"])
+        self.lua(
+            "local f = game.forces.player; "
+            "f.technologies['electronics'].researched = true;"
+            " f.technologies['steam-power'].researched = true"
+        )
+        self.assertFalse(
+            self.game.call("tech", name="automation-science-pack")["researched"]
+        )
         self.give(electronic_circuit=10, iron_gear_wheel=10, transport_belt=4)
         report = self.game.do(craft("lab", 1, wait=True))
         self.assertTrue(report.results[0]["ok"], str(report))
-        self.assertTrue(self.game.call("tech", name="automation-science-pack")["researched"])
-        self.assertIn("automation-science-pack", [e.get("name") for e in report.events])
-        self.assertEqual(self.game.call("production", names={"lab": True})["items"]["lab"]["made"], 1)
+        self.assertTrue(
+            self.game.call("tech", name="automation-science-pack")["researched"]
+        )
+        self.assertIn(
+            "automation-science-pack", [e.get("name") for e in report.events]
+        )
+        self.assertEqual(
+            self.game.call("production", names={"lab": True})["items"]["lab"][
+                "made"
+            ],
+            1,
+        )
 
     def test_31_death_and_respawn(self):
         self.lua("storage.agent.character.die()")
@@ -258,13 +350,20 @@ class LiveTest(unittest.TestCase):
 
     def test_50_chat_in_and_out(self):
         _, seq = self.game.chat(since=10**9)
-        self.console.command("hello tester, are you there?")          # a chat line from the server console
+        self.console.command(
+            "hello tester, are you there?"
+        )  # a chat line from the server console
         self.console.command("unrelated line")
         lines, _ = self.game.chat(since=seq)
-        self.assertEqual([(l["from"], l.get("mention", False)) for l in lines], [("<server>", True), ("<server>", False)])
+        self.assertEqual(
+            [(l["from"], l.get("mention", False)) for l in lines],
+            [("<server>", True), ("<server>", False)],
+        )
         line = self.game.say("yes, here")
         self.assertTrue(line["self"])
-        self.assertIn("Tester: yes, here", (self.session.dir / "chat.log").read_text())
+        self.assertIn(
+            "Tester: yes, here", (self.session.dir / "chat.log").read_text()
+        )
         with self.assertRaises(Exception):
             self.game.say("hi", to="nobody")
 
@@ -276,9 +375,15 @@ class LiveTest(unittest.TestCase):
 
     def test_52_players_and_batch(self):
         self.assertEqual(self.game.players(), [])
-        replies = self.game.batch(("status", {}), ("exists", {"names": ["iron-plate", "no-such-thing"]}), ("nope", {}))
+        replies = self.game.batch(
+            ("status", {}),
+            ("exists", {"names": ["iron-plate", "no-such-thing"]}),
+            ("nope", {}),
+        )
         self.assertTrue(replies[0]["ok"])
-        self.assertEqual(replies[1]["exists"], {"iron-plate": True, "no-such-thing": False})
+        self.assertEqual(
+            replies[1]["exists"], {"iron-plate": True, "no-such-thing": False}
+        )
         self.assertFalse(replies[2]["ok"])
 
     def test_53_coop_runs_in_real_time(self):
@@ -310,7 +415,15 @@ class LiveTest(unittest.TestCase):
         self.assertEqual(path, self.session.save_path("checkpoint"))
         with zipfile.ZipFile(path) as archive:
             inner = {name.split("/", 1)[1] for name in archive.namelist()}
-        self.assertLessEqual({"control.lua", "agent/main.lua", "agent/orders.lua", "agent/social.lua"}, inner)
+        self.assertLessEqual(
+            {
+                "control.lua",
+                "agent/main.lua",
+                "agent/orders.lua",
+                "agent/social.lua",
+            },
+            inner,
+        )
 
     def test_41_script_swap_keeps_the_game(self):
         self.give(wood=7)
@@ -324,7 +437,9 @@ class LiveTest(unittest.TestCase):
         type(self).console = self.srv.target().connect()
         after = self.game.state()
         self.assertEqual(after["tick"], before["tick"])
-        self.assertEqual(after["character"]["inventory"], before["character"]["inventory"])
+        self.assertEqual(
+            after["character"]["inventory"], before["character"]["inventory"]
+        )
         self.assertEqual(after["deaths"], before["deaths"])
 
 

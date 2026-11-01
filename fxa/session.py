@@ -2,17 +2,21 @@
 
     <session>/
         session.json     settings: mode, mods, seed, agent name, server options
-        NOTES.md         the state of play, kept up to date by the agent (start here when resuming)
-        knowledge/       knowledge for this game only (map facts, lessons); top layer, see layers.py
+        NOTES.md         the state of play, kept up to date by the agent (start
+                         here when resuming)
+        knowledge/       knowledge for this game only (map facts, lessons); top
+                         layer, see layers.py
         skills/          skills for this game only (sandboxed .fxs scripts)
         chat.log         chat transcript
-        server/          the game server's own directory: saves/, logs, config (machine-specific)
+        server/          the game server's own directory: saves/, logs, config
+                         (machine-specific)
             saves/       checkpoints
             secrets.json RCON password and other credentials (never share)
 
-A session lives in <FXA_HOME>/sessions/<name> unless created with --dir, in which case its
-path is recorded in <FXA_HOME>/sessions.json. Other players may add files to knowledge/ and
-skills/ of a shared session; those are treated as untrusted (see docs/DESIGN.md, "Safety").
+A session lives in <FXA_HOME>/sessions/<name> unless created with --dir, in
+which case its path is recorded in <FXA_HOME>/sessions.json. Other players may
+add files to knowledge/ and skills/ of a shared session; those are treated as
+untrusted (see docs/DESIGN.md, "Safety").
 """
 
 import datetime
@@ -27,14 +31,16 @@ class SessionError(Exception):
     pass
 
 
-GITIGNORE = """# Machine-specific server files and credentials. Saves are kept apart so they can be shared.
+GITIGNORE = """# Machine-specific server files and credentials. Saves are kept
+apart so they can be shared.
 server/*
 !server/saves/
 """
 
 NOTES_TEMPLATE = """# {name}
 
-State of play for this session. Keep it current: it is the first thing read when the game is resumed.
+State of play for this session. Keep it current: it is the first thing read when
+the game is resumed.
 
 - Mode: {mode}. Mods: {mods}.
 - Goal: (what the players want from this game)
@@ -45,14 +51,17 @@ State of play for this session. Keep it current: it is the first thing read when
 """
 
 DEFAULT_SERVER = {
-    "bind": None,             # solo: 127.0.0.1, coop: 0.0.0.0
-    "port": None,             # solo: any free port, coop: 34197
+    "bind": None,  # solo: 127.0.0.1, coop: 0.0.0.0
+    "port": None,  # solo: any free port, coop: 34197
     "max_players": 0,
-    "lan": True,              # coop: show the game on the local network
-    "public": False,          # coop: list on the public server browser (needs a factorio.com login, see the guide)
-    "verify_users": True,     # coop: players must be logged in to factorio.com (protects admin names)
-    "auto_pause": True,       # coop: pause while nobody is connected
-    "admins": [],             # player names that get admin rights
+    "lan": True,  # coop: show the game on the local network
+    # coop: list on the public server browser (needs a factorio.com login, see
+    # the guide)
+    "public": False,
+    # coop: players must be logged in to factorio.com (protects admin names)
+    "verify_users": True,
+    "auto_pause": True,  # coop: pause while nobody is connected
+    "admins": [],  # player names that get admin rights
     "description": "",
 }
 
@@ -132,17 +141,25 @@ class Session:
         paths.write_json(path, data, private=True)
 
     def log_chat(self, lines):
-        """Append chat lines to chat.log, each once (several commands report the same lines).
+        """Append chat lines to chat.log, each once (several commands report the
+        same lines).
 
-        Lines are recognised by (id, tick, text); ids alone repeat after an older save is loaded."""
+        Lines are recognised by (id, tick, text); ids alone repeat after an
+        older save is loaded."""
         if not lines:
             return
         seen_file = self.server_dir / "chat-seen.json"
         seen = paths.read_json(seen_file, [])
         known = {tuple(x) for x in seen}
         fresh = []
-        for line in sorted(lines, key=lambda l: (l.get("tick", 0), l.get("id", 0))):
-            key = (line.get("id", 0), line.get("tick", 0), str(line.get("text", ""))[:200])
+        for line in sorted(
+            lines, key=lambda l: (l.get("tick", 0), l.get("id", 0))
+        ):
+            key = (
+                line.get("id", 0),
+                line.get("tick", 0),
+                str(line.get("text", ""))[:200],
+            )
             if key not in known:
                 known.add(key)
                 seen.append(list(key))
@@ -153,7 +170,12 @@ class Session:
         with open(self.dir / "chat.log", "a", encoding="utf-8") as out:
             for line in fresh:
                 to = f" (to {line['to']})" if line.get("to") else ""
-                out.write(f"{line.get('tick', '?')}\t#{line.get('id', '?')}\t{line.get('from', '?')}{to}: {line.get('text', '')}\n")
+                fields = (
+                    line.get("tick", "?"),
+                    f"#{line.get('id', '?')}",
+                    f"{line.get('from', '?')}{to}: {line.get('text', '')}",
+                )
+                out.write("\t".join(map(str, fields)) + "\n")
 
     def __repr__(self):
         return f"Session({self.name!r}, {self.dir})"
@@ -167,13 +189,25 @@ def _sessions_root():
     return paths.home() / "sessions"
 
 
-def create(name, directory=None, mode="solo", mods=None, agent_name="Agent", seed=None, server=None):
+def create(
+    name,
+    directory=None,
+    mode="solo",
+    mods=None,
+    agent_name="Agent",
+    seed=None,
+    server=None,
+):
     paths.check_name(name, "session name")
     if mode not in ("solo", "coop"):
         raise SessionError("mode is solo or coop")
     if name in _registry() or (_sessions_root() / name).exists():
         raise SessionError(f"a session named {name!r} already exists")
-    target = Path(directory).expanduser().resolve() if directory else _sessions_root() / name
+    target = (
+        Path(directory).expanduser().resolve()
+        if directory
+        else _sessions_root() / name
+    )
     if (target / "session.json").exists():
         raise SessionError(f"{target} already holds a session")
     if target.exists() and any(target.iterdir()):
@@ -182,13 +216,27 @@ def create(name, directory=None, mode="solo", mods=None, agent_name="Agent", see
         (target / sub).mkdir(parents=True, exist_ok=True)
     mods = list(dict.fromkeys(["base"] + list(mods or [])))
     meta = {
-        "name": name, "mode": mode, "mods": mods, "agent_name": agent_name, "seed": seed, "save": "game",
-        "created": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
-        "server": {key: value for key, value in (server or {}).items() if value is not None},
+        "name": name,
+        "mode": mode,
+        "mods": mods,
+        "agent_name": agent_name,
+        "seed": seed,
+        "save": "game",
+        "created": datetime.datetime.now()
+        .astimezone()
+        .isoformat(timespec="seconds"),
+        "server": {
+            key: value
+            for key, value in (server or {}).items()
+            if value is not None
+        },
     }
     paths.write_json(target / "session.json", meta)
     (target / ".gitignore").write_text(GITIGNORE, encoding="utf-8")
-    (target / "NOTES.md").write_text(NOTES_TEMPLATE.format(name=name, mode=mode, mods=", ".join(mods)), encoding="utf-8")
+    (target / "NOTES.md").write_text(
+        NOTES_TEMPLATE.format(name=name, mode=mode, mods=", ".join(mods)),
+        encoding="utf-8",
+    )
     if directory:
         registry = _registry()
         registry[name] = str(target)
@@ -217,21 +265,30 @@ def find(spec):
 
 
 def current(spec=None):
-    """The session named by --session, FXA_SESSION, or the one last chosen with `fx session use`."""
+    """The session named by --session, FXA_SESSION, or the one last chosen with
+    `fx session use`."""
     spec = spec or os.environ.get("FXA_SESSION")
     if not spec:
         try:
-            spec = (paths.home() / "current").read_text(encoding="utf-8").strip()
+            spec = (
+                (paths.home() / "current").read_text(encoding="utf-8").strip()
+            )
         except FileNotFoundError:
             spec = None
     if not spec:
-        raise SessionError("no session selected: create one with `fx session new NAME` or pick one with `fx session use NAME`")
+        raise SessionError(
+            "no session selected: create one with `fx session new NAME` or "
+            "pick one with `fx session use NAME`"
+        )
     return find(spec)
 
 
 def use(session):
     paths.home().mkdir(parents=True, exist_ok=True)
-    (paths.home() / "current").write_text(session.name if find_quiet(session.name) else str(session.dir), encoding="utf-8")
+    (paths.home() / "current").write_text(
+        session.name if find_quiet(session.name) else str(session.dir),
+        encoding="utf-8",
+    )
 
 
 def find_quiet(spec):

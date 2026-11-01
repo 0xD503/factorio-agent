@@ -1,13 +1,18 @@
 """Top up gun turrets with magazines, emptiest first.
 
-A turret keeps the kind of ammunition it already holds; an empty one gets piercing rounds
-when the character carries them, otherwise ordinary magazines. Carries on through alerts,
-since a round along the edge of a base often meets enemies.
+A turret keeps the kind of ammunition it already holds; an empty one gets
+piercing rounds when the character carries them, otherwise ordinary magazines.
+Carries on through alerts, since a round along the edge of a base often meets
+enemies.
 """
 
 META = {
-    "params": {"x": "centre (default: the character)", "y": "centre", "r": "radius, default 120",
-               "target": "magazines each turret should hold, default 40"},
+    "params": {
+        "x": "centre (default: the character)",
+        "y": "centre",
+        "r": "radius, default 120",
+        "target": "magazines each turret should hold, default 40",
+    },
     "requires": ["gun-turret", "firearm-magazine"],
     "game": ">=2.0",
     "verified": "2.0.77",
@@ -53,7 +58,11 @@ def main(x=None, y=None, r=120, target=40):
     turrets = entities(x=x, y=y, r=r, name="gun-turret", limit=500)
     orders = restock_orders(turrets, target, stock)
     damaged = len([t for t in turrets if "hp" in t])
-    summary = {"turrets": len(turrets), "below_target": len(orders), "damaged": damaged}
+    summary = {
+        "turrets": len(turrets),
+        "below_target": len(orders),
+        "damaged": damaged,
+    }
     if orders:
         summary["result"] = go(orders, "restock turrets", 40000)["reason"]
     return summary

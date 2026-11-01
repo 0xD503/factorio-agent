@@ -1,5 +1,5 @@
-# Release archives (git archive, see tools/release.py) get the commit stamped in, and leave
-# out what only matters to the repository itself.
+# Release archives (git archive, see tools/release.py) get the commit stamped
+# in, and leave out what only matters to the repository itself.
 fxa/_build.py export-subst
 .gitattributes export-ignore
 

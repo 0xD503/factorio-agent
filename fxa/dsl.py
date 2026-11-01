@@ -2,7 +2,8 @@
 
     walk X Y
     mine X Y                      the building, tree or rock at that spot
-    mine NAME X Y [xN] [rR]       N units of ore (or N entities) of that name within R
+    mine NAME X Y [xN] [rR]       N units of ore (or N entities) of that name
+                                  within R
     mine tree|rock X Y [xN] [rR]
     craft RECIPE [N] [wait]
     wait N | wait craft | wait have ITEM N | wait item X Y ITEM N
@@ -11,7 +12,8 @@
     take X Y [ITEM] [N]
     recipe X Y NAME
     rotate X Y [n|e|s|w]
-    filter X Y [ITEM...]          inserter moves only these items; none clears it
+    filter X Y [ITEM...]          inserter moves only these items; none clears
+                                  it
     mirror X Y                    flip a machine so its fluid inlets swap sides
     launch X Y
     pickup [X Y]
@@ -83,7 +85,14 @@ def _parse_one(text):
             else:
                 radius = _number(rest[0][1:])
             rest = rest[1:]
-        order = game.mine(_number(x), _number(y), name=name, kind=kind, count=count, radius=radius)
+        order = game.mine(
+            _number(x),
+            _number(y),
+            name=name,
+            kind=kind,
+            count=count,
+            radius=radius,
+        )
 
     elif verb == "craft":
         (recipe,), rest = _take(rest, 1, text)
@@ -110,7 +119,9 @@ def _parse_one(text):
             order = game.wait(have=item, count=_count(count))
         elif first == "item":
             (x, y, item, count), rest = _take(rest, 4, text)
-            order = game.wait(item=item, count=_count(count), x=_number(x), y=_number(y))
+            order = game.wait(
+                item=item, count=_count(count), x=_number(x), y=_number(y)
+            )
         else:
             order = game.wait(ticks=_count(first))
 
@@ -128,7 +139,14 @@ def _parse_one(text):
             else:
                 break
             rest = rest[1:]
-        order = game.place(item, _number(x), _number(y), dir=direction, recipe=recipe, ug_type=ug_type)
+        order = game.place(
+            item,
+            _number(x),
+            _number(y),
+            dir=direction,
+            recipe=recipe,
+            ug_type=ug_type,
+        )
 
     elif verb == "put":
         (x, y, item), rest = _take(rest, 3, text)

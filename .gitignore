@@ -4,3 +4,8 @@ __pycache__/
 /run/
 /.venv/
 /dist/
+
+# The developer's own Factorio for the dev container, and its settings.
+/.devcontainer/.env
+/.devcontainer/factorio/*
+!/.devcontainer/factorio/README.md

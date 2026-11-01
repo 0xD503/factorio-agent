@@ -29,7 +29,9 @@ def amount(value):
 def items(counts):
     if not counts:
         return "-"
-    return ", ".join(f"{name} {amount(count)}" for name, count in sorted(counts.items()))
+    return ", ".join(
+        f"{name} {amount(count)}" for name, count in sorted(counts.items())
+    )
 
 
 def fields(data, skip=()):
@@ -48,19 +50,26 @@ def fields(data, skip=()):
 
 
 def event(entry):
-    return f"{entry.get('type')}@{entry.get('tick')} " + fields(entry, skip=("type", "tick"))
+    return f"{entry.get('type')}@{entry.get('tick')} " + fields(
+        entry, skip=("type", "tick")
+    )
 
 
 def changes(counts):
     if not counts:
         return "-"
-    return ", ".join(f"{name} {count:+d}" for name, count in sorted(counts.items()))
+    return ", ".join(
+        f"{name} {count:+d}" for name, count in sorted(counts.items())
+    )
 
 
 def brief(state):
     if state.get("dead"):
         return f"DEAD, respawn in {state.get('respawn_in')} ticks"
-    return f"at ({num(state.get('x'))}, {num(state.get('y'))}) hp {state.get('health')} crafting {state.get('crafting')}"
+    return (
+        f"at ({num(state.get('x'))}, {num(state.get('y'))}) hp "
+        f"{state.get('health')} crafting {state.get('crafting')}"
+    )
 
 
 def report(rep):
@@ -69,7 +78,10 @@ def report(rep):
         head = f"  {result.get('n')} {result.get('type')}"
         if result.get("ok"):
             info = result.get("info")
-            lines.append(f"{head} ok {result.get('ticks')}t" + (" " + fields(info) if info else ""))
+            lines.append(
+                f"{head} ok {result.get('ticks')}t"
+                + (" " + fields(info) if info else "")
+            )
         else:
             lines.append(f"{head} FAILED: {result.get('error')}")
     if rep.dropped:
@@ -89,8 +101,12 @@ def report(rep):
 
 def chat_line(line):
     """One chat line; map pings ([gps=x,y]) are shown as plain coordinates."""
-    text = GPS.sub(lambda m: f"[at {m.group(1)},{m.group(2)}]", str(line.get("text", "")))
-    text = "".join(c for c in text if c >= " " or c == "\t")     # no terminal escapes from other players
+    text = GPS.sub(
+        lambda m: f"[at {m.group(1)},{m.group(2)}]", str(line.get("text", ""))
+    )
+    text = "".join(
+        c for c in text if c >= " " or c == "\t"
+    )  # no terminal escapes from other players
     who = line.get("from", "?")
     to = f" -> {line['to']}" if line.get("to") else ""
     mark = " (@)" if line.get("mention") else ""
@@ -99,7 +115,9 @@ def chat_line(line):
 
 def chat(lines):
     lines = seq(lines)
-    return "\n".join(chat_line(line) for line in lines) if lines else "(no chat)"
+    return (
+        "\n".join(chat_line(line) for line in lines) if lines else "(no chat)"
+    )
 
 
 def players(found):
@@ -137,24 +155,43 @@ def clock(tick):
 
 def state(reply):
     mode = reply.get("mode", "solo")
-    speed = f"speed {num(reply.get('speed'))}" if mode == "solo" else "real time"
-    lines = [f"[tick {reply.get('tick')} = {clock(reply.get('tick', 0))} played] {mode} as {reply.get('name')}, {speed},"
-             f" {reply.get('players_online', 0)} players online, chat #{reply.get('chat_seq', 0)}",
-             f"seed {reply.get('seed')} deaths {reply.get('deaths')}"
-             f" evolution {num(reply.get('evolution'))} pollution here {num(reply.get('pollution', 0))}"]
+    speed = (
+        f"speed {num(reply.get('speed'))}" if mode == "solo" else "real time"
+    )
+    lines = [
+        f"[tick {reply.get('tick')} = {clock(reply.get('tick', 0))} played] "
+        f"{mode} as {reply.get('name')}, {speed},"
+        f" {reply.get('players_online', 0)} players online, chat "
+        f"#{reply.get('chat_seq', 0)}",
+        f"seed {reply.get('seed')} deaths {reply.get('deaths')}"
+        f" evolution {num(reply.get('evolution'))} pollution here "
+        f"{num(reply.get('pollution', 0))}",
+    ]
     ch = reply.get("character")
     if ch:
-        lines.append(f"at ({num(ch['x'])}, {num(ch['y'])}) hp {ch['health']}/{ch['max_health']}")
+        lines.append(
+            f"at ({num(ch['x'])}, {num(ch['y'])}) hp "
+            f"{ch['health']}/{ch['max_health']}"
+        )
         lines.append(f"inv: {items(ch.get('inventory'))}")
-        lines.append(f"guns: {items(ch.get('guns'))} | ammo: {items(ch.get('ammo'))} | armor: {items(ch.get('armor'))}")
+        lines.append(
+            f"guns: {items(ch.get('guns'))} | ammo: {items(ch.get('ammo'))} | "
+            f"armor: {items(ch.get('armor'))}"
+        )
         crafting = seq(ch.get("crafting"))
         if crafting:
-            lines.append("crafting: " + ", ".join(f"{c['recipe']} {c['count']}" for c in crafting))
+            lines.append(
+                "crafting: "
+                + ", ".join(f"{c['recipe']} {c['count']}" for c in crafting)
+            )
     else:
         lines.append("no character (dead or not started)")
     orders = reply.get("orders") or {}
     if orders.get("current") or orders.get("queued"):
-        lines.append(f"orders: current {orders.get('current')}, {orders.get('queued')} queued")
+        lines.append(
+            f"orders: current {orders.get('current')}, {orders.get('queued')} "
+            "queued"
+        )
     lines.append(research(reply.get("research") or {}))
     return "\n".join(lines)
 
@@ -163,30 +200,67 @@ def research(info):
     queue = seq(info.get("queue"))
     if not info.get("current"):
         return "research: none"
-    return f"research: {info['current']} {info.get('progress', 0) * 100:.0f}% | queue: {', '.join(queue)}"
+    return (
+        f"research: {info['current']} {info.get('progress', 0) * 100:.0f}% "
+        f"| queue: {', '.join(queue)}"
+    )
 
 
 def scan(reply):
-    lines = [f"scan around ({num(reply['x'])}, {num(reply['y'])}) r={reply['r']}"]
+    lines = [
+        f"scan around ({num(reply['x'])}, {num(reply['y'])}) r={reply['r']}"
+    ]
     for patch in seq(reply.get("resources")):
-        lines.append(f"  {patch['name']}: {amount(patch['amount'])} in {patch['tiles']} tiles,"
-                     f" x {patch['x1']}..{patch['x2']} y {patch['y1']}..{patch['y2']}, dist {patch['dist']}")
+        lines.append(
+            f"  {patch['name']}: {amount(patch['amount'])} in {patch['tiles']} "
+            "tiles,"
+            f" x {patch['x1']}..{patch['x2']} y {patch['y1']}..{patch['y2']}, "
+            f"dist {patch['dist']}"
+        )
     trees = reply.get("trees") or {}
-    lines.append(f"  trees: {trees.get('count', 0)}" + (f", nearest {tuple(trees['nearest'])}" if trees.get("nearest") else ""))
+    lines.append(
+        f"  trees: {trees.get('count', 0)}"
+        + (
+            f", nearest {tuple(trees['nearest'])}"
+            if trees.get("nearest")
+            else ""
+        )
+    )
     rocks = seq(reply.get("rocks"))
     if rocks:
-        lines.append("  rocks: " + ", ".join(f"{r['name']} ({num(r['x'])}, {num(r['y'])})" for r in rocks))
+        lines.append(
+            "  rocks: "
+            + ", ".join(
+                f"{r['name']} ({num(r['x'])}, {num(r['y'])})" for r in rocks
+            )
+        )
     water = reply.get("water") or {}
-    lines.append(f"  water: {water.get('tiles', 0)} tiles" + (f", nearest {tuple(water['nearest'])}" if water.get("nearest") else ""))
+    lines.append(
+        f"  water: {water.get('tiles', 0)} tiles"
+        + (
+            f", nearest {tuple(water['nearest'])}"
+            if water.get("nearest")
+            else ""
+        )
+    )
     enemy = reply.get("enemy") or {}
-    text = f"  enemy: {enemy.get('nests', 0)} nests, {enemy.get('units', 0)} units in view"
+    text = (
+        f"  enemy: {enemy.get('nests', 0)} nests, {enemy.get('units', 0)} "
+        "units in view"
+    )
     if enemy.get("nearest_nest"):
-        text += f", nearest nest {tuple(enemy['nearest_nest'])} dist {enemy['nearest_nest_dist']}"
+        text += (
+            f", nearest nest {tuple(enemy['nearest_nest'])} dist "
+            f"{enemy['nearest_nest_dist']}"
+        )
     lines.append(text)
     if reply.get("own"):
         lines.append(f"  own: {items(reply['own'])}")
     for box in seq(reply.get("containers")):
-        lines.append(f"  {box['name']} ({num(box['x'])}, {num(box['y'])}): {items(box['items'])}")
+        lines.append(
+            f"  {box['name']} ({num(box['x'])}, {num(box['y'])}): "
+            f"{items(box['items'])}"
+        )
     return "\n".join(lines)
 
 
@@ -211,7 +285,10 @@ def found(reply):
     lines = []
     for e in seq(reply.get("found")):
         extra = f" amount {amount(e['amount'])}" if "amount" in e else ""
-        lines.append(f"{e['name']} ({num(e['x'])}, {num(e['y'])}) dist {num(e['dist'])}{extra}")
+        lines.append(
+            f"{e['name']} ({num(e['x'])}, {num(e['y'])}) dist "
+            f"{num(e['dist'])}{extra}"
+        )
     return "\n".join(lines) if lines else "nothing found"
 
 
@@ -224,7 +301,7 @@ def tile_map(reply):
         if x % (10 * scale) == 0:
             label = str(x)
             if column + len(label) <= width:
-                ruler[column:column + len(label)] = label
+                ruler[column : column + len(label)] = label
     lines = ["      " + "".join(ruler)]
     for offset, row in enumerate(seq(reply.get("rows"))):
         lines.append(f"{y0 + offset * scale:5d} {row}")
@@ -239,9 +316,12 @@ def recipes(reply):
             flags.append("LOCKED")
         if r.get("by_hand"):
             flags.append("hand")
-        lines.append(f"{r['name']}: {items(r['ingredients'])} -> {items(r['products'])} in {num(r['seconds'])}s"
-                     f" [{r['category']}{', ' + ', '.join(flags) if flags else ''}]"
-                     f" made in: {', '.join(seq(r.get('made_in')))}")
+        lines.append(
+            f"{r['name']}: {items(r['ingredients'])} -> {items(r['products'])} "
+            f"in {num(r['seconds'])}s"
+            f" [{r['category']}{', ' + ', '.join(flags) if flags else ''}]"
+            f" made in: {', '.join(seq(r.get('made_in')))}"
+        )
     return "\n".join(lines)
 
 
@@ -249,16 +329,29 @@ def cost(entry):
     if entry.get("trigger"):
         return "trigger: " + fields(entry["trigger"])
     c = entry.get("cost") or {}
-    return f"{c.get('count')} x ({items(c.get('packs'))}) {num(c.get('seconds', 0))}s each"
+    return (
+        f"{c.get('count')} x ({items(c.get('packs'))}) "
+        f"{num(c.get('seconds', 0))}s each"
+    )
 
 
 def tech(reply):
     prerequisites = reply.get("prerequisites") or {}
-    lines = [f"{reply['name']}: {'researched' if reply['researched'] else 'not researched'}"
-             f"{'' if reply.get('enabled') else ' (disabled)'}",
-             f"  cost: {cost(reply)}",
-             "  needs: " + (", ".join(f"{name}{'' if done else ' (missing)'}" for name, done in sorted(prerequisites.items())) or "-"),
-             "  unlocks: " + (", ".join(seq(reply.get("unlocks"))) or "-")]
+    lines = [
+        f"{reply['name']}: "
+        f"{'researched' if reply['researched'] else 'not researched'}"
+        f"{'' if reply.get('enabled') else ' (disabled)'}",
+        f"  cost: {cost(reply)}",
+        "  needs: "
+        + (
+            ", ".join(
+                f"{name}{'' if done else ' (missing)'}"
+                for name, done in sorted(prerequisites.items())
+            )
+            or "-"
+        ),
+        "  unlocks: " + (", ".join(seq(reply.get("unlocks"))) or "-"),
+    ]
     effects = seq(reply.get("effects"))
     if effects:
         lines.append("  effects: " + ", ".join(effects))
@@ -276,29 +369,59 @@ def production(reply):
     lines = []
     for kind in ("items", "fluids"):
         for name, row in sorted((reply.get(kind) or {}).items()):
-            lines.append(f"{name}: made {amount(row['made'])} used {amount(row['used'])}"
-                         f" | per min, last 1m: +{num(row['made_1m'])} -{num(row['used_1m'])}"
-                         f" | last 10m: +{num(row['made_10m'])} -{num(row['used_10m'])}")
+            lines.append(
+                f"{name}: made {amount(row['made'])} used {amount(row['used'])}"
+                f" | per min, last 1m: +{num(row['made_1m'])} "
+                f"-{num(row['used_1m'])}"
+                f" | last 10m: +{num(row['made_10m'])} -{num(row['used_10m'])}"
+            )
     return "\n".join(lines) if lines else "nothing produced yet"
 
 
 def enemies(reply):
-    lines = [f"evolution {num(reply['evolution'])}, pollution here {num(reply['pollution'])}, known nests {reply.get('total_nests', 0)}"]
+    lines = [
+        f"evolution {num(reply['evolution'])}, pollution here "
+        f"{num(reply['pollution'])}, known nests "
+        f"{reply.get('total_nests', 0)}"
+    ]
     for nest in seq(reply.get("nests")):
-        lines.append(f"  {nest['name']} ({num(nest['x'])}, {num(nest['y'])}) dist {nest['dist']}")
+        lines.append(
+            f"  {nest['name']} ({num(nest['x'])}, {num(nest['y'])}) dist "
+            f"{nest['dist']}"
+        )
     return "\n".join(lines)
 
 
 def status(reply):
-    groups = sorted(seq(reply.get("groups")), key=lambda g: (g["status"] in ("working", "normal"), g["name"], g["status"]))
+    groups = sorted(
+        seq(reply.get("groups")),
+        key=lambda g: (
+            g["status"] in ("working", "normal"),
+            g["name"],
+            g["status"],
+        ),
+    )
     lines = []
     for group in groups:
-        where = " at " + " ".join(f"({num(x)},{num(y)})" for x, y in seq(group.get("at"))) if seq(group.get("at")) else ""
-        lines.append(f"{group['count']:4d} {group['name']} {group['status']}{where}")
+        where = (
+            " at "
+            + " ".join(f"({num(x)},{num(y)})" for x, y in seq(group.get("at")))
+            if seq(group.get("at"))
+            else ""
+        )
+        lines.append(
+            f"{group['count']:4d} {group['name']} {group['status']}{where}"
+        )
     return "\n".join(lines) if lines else "no buildings"
 
 
 def power(reply):
-    top = sorted((reply.get("consumers") or {}).items(), key=lambda kv: -kv[1])[:8]
-    return (f"power: drawing {reply['consumed']} kW, generating {reply['produced']} kW, engines can give {reply['capacity']} kW\n"
-            "  biggest users (kW): " + ", ".join(f"{name} {kw}" for name, kw in top if kw))
+    top = sorted((reply.get("consumers") or {}).items(), key=lambda kv: -kv[1])[
+        :8
+    ]
+    return (
+        f"power: drawing {reply['consumed']} kW, generating "
+        f"{reply['produced']} kW, engines can give {reply['capacity']} kW\n"
+        "  biggest users (kW): "
+        + ", ".join(f"{name} {kw}" for name, kw in top if kw)
+    )

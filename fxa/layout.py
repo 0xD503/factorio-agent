@@ -1,7 +1,7 @@
 """Layout helpers available to skills: turn tile coordinates into place orders.
 
-Tile (x, y) is the square whose centre is (x + 0.5, y + 0.5). Everything here takes whole
-tile numbers for 1x1 things.
+Tile (x, y) is the square whose centre is (x + 0.5, y + 0.5). Everything here
+takes whole tile numbers for 1x1 things.
 """
 
 from fxa.game import place
@@ -10,13 +10,16 @@ STEP_DIR = {(1, 0): "e", (-1, 0): "w", (0, 1): "s", (0, -1): "n"}
 
 
 def tiles_along(corners):
-    """Every tile on a path through the given corner tiles (axis-aligned legs)."""
+    """Every tile on a path through the given corner tiles (axis-aligned
+    legs)."""
     corners = [tuple(int(v) for v in c) for c in corners]
     path = [corners[0]]
     for x2, y2 in corners[1:]:
         x1, y1 = path[-1]
         if x1 != x2 and y1 != y2:
-            raise ValueError(f"leg from {(x1, y1)} to {(x2, y2)} is not straight")
+            raise ValueError(
+                f"leg from {(x1, y1)} to {(x2, y2)} is not straight"
+            )
         dx = (x2 > x1) - (x2 < x1)
         dy = (y2 > y1) - (y2 < y1)
         while (x1, y1) != (x2, y2):
@@ -28,7 +31,8 @@ def tiles_along(corners):
 
 
 def belt_path(corners, item="transport-belt", end_dir=None):
-    """Belts along a path; each one points at the next, the last keeps going straight."""
+    """Belts along a path; each one points at the next, the last keeps going
+    straight."""
     path = tiles_along(corners)
     orders = []
     for index, (x, y) in enumerate(path):

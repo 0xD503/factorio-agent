@@ -20,11 +20,13 @@ class FakeServer:
     """One-connection RCON server.
 
     `handler(body)` returns a str to send as a normal reply, or bytes to send
-    raw before dropping the connection. `chunk` splits every send into pieces
-    of that many bytes to imitate TCP fragmentation.
+    raw before dropping the connection. `chunk` splits every send into pieces of
+    that many bytes to imitate TCP fragmentation.
     """
 
-    def __init__(self, password="secret", handler=lambda body: body, chunk=None):
+    def __init__(
+        self, password="secret", handler=lambda body: body, chunk=None
+    ):
         self.password = password
         self.handler = handler
         self.chunk = chunk
@@ -71,11 +73,13 @@ class PacketTest(unittest.TestCase):
     def test_encode_matches_wire_format(self):
         self.assertEqual(
             encode_packet(7, EXEC, "hi"),
-            b"\x0c\x00\x00\x00" b"\x07\x00\x00\x00" b"\x02\x00\x00\x00" b"hi\x00\x00",
+            b"\x0c\x00\x00\x00\x07\x00\x00\x00\x02\x00\x00\x00hi\x00\x00",
         )
 
     def test_empty_body_has_minimum_size(self):
-        self.assertEqual(encode_packet(1, RESPONSE, "")[:4], b"\x0a\x00\x00\x00")
+        self.assertEqual(
+            encode_packet(1, RESPONSE, "")[:4], b"\x0a\x00\x00\x00"
+        )
 
     def test_negative_id_round_trips(self):
         left, right = socket.socketpair()
@@ -106,7 +110,9 @@ class ClientTest(unittest.TestCase):
     def test_lua_uses_silent_command(self):
         server = self.serve()
         with RconClient(port=server.port, password="secret") as client:
-            self.assertEqual(client.lua("rcon.print(1)"), "/silent-command rcon.print(1)")
+            self.assertEqual(
+                client.lua("rcon.print(1)"), "/silent-command rcon.print(1)"
+            )
 
     def test_wrong_password(self):
         server = self.serve()
@@ -145,7 +151,9 @@ class ClientTest(unittest.TestCase):
             return b""
 
         server = self.serve(handler=stall)
-        with RconClient(port=server.port, password="secret", timeout=0.2) as client:
+        with RconClient(
+            port=server.port, password="secret", timeout=0.2
+        ) as client:
             with self.assertRaises(RconError):
                 client.command("observe")
 

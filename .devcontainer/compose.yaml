@@ -1,0 +1,27 @@
+# Development container, also usable without an editor:
+#     podman compose -f .devcontainer/compose.yaml run --rm dev
+#     docker compose -f .devcontainer/compose.yaml run --rm dev
+# With rootless Podman, `export PODMAN_USERNS=keep-id` first, so the mounted
+# repository keeps your file ownership.
+#
+# Factorio is not part of the project. Give the folder of a Linux build (the one
+# holding bin/ and data/; the free headless server works) in FACTORIO_DIR, e.g.
+# in .devcontainer/.env (see .env.example). It is mounted read-only. Without
+# it the offline tests still run; `fx selftest` needs it.
+services:
+    dev:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: localhost/factorio-agent-dev
+        working_dir: /workspaces/factorio-agent
+        command: sleep infinity
+        environment:
+            FACTORIO_SERVER: /opt/factorio
+        volumes:
+            - ..:/workspaces/factorio-agent
+            - ${FACTORIO_DIR:-./factorio}:/opt/factorio:ro
+        # To join a co-op server started in the container from the game on
+        # this machine, publish its port:
+        # ports:
+        #     - "127.0.0.1:34197:34197/udp"

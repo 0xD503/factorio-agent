@@ -1,4 +1,5 @@
-"""Sessions, knowledge layers, install detection and the base skills, without a game."""
+"""Sessions, knowledge layers, install detection and the base skills, without a
+game."""
 
 import json
 import os
@@ -17,7 +18,9 @@ class TempHome(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.home = Path(self.tmp.name) / "home"
-        patcher = mock.patch.dict(os.environ, {"FXA_HOME": str(self.home), "FXA_SESSION": ""})
+        patcher = mock.patch.dict(
+            os.environ, {"FXA_HOME": str(self.home), "FXA_SESSION": ""}
+        )
         patcher.start()
         self.addCleanup(patcher.stop)
         self.addCleanup(self.tmp.cleanup)
@@ -25,7 +28,9 @@ class TempHome(unittest.TestCase):
 
 class SessionTest(TempHome):
     def test_create_find_use(self):
-        s = session.create("alpha", mode="coop", mods=["quality"], agent_name="Claude")
+        s = session.create(
+            "alpha", mode="coop", mods=["quality"], agent_name="Claude"
+        )
         self.assertEqual(s.dir, self.home / "sessions" / "alpha")
         self.assertEqual(s.mods, ["base", "quality"])
         self.assertTrue((s.dir / "NOTES.md").exists())
@@ -43,7 +48,10 @@ class SessionTest(TempHome):
 
     def test_names_cannot_escape(self):
         for bad in ("../x", "a/b", ".hidden", "", "a\\b", "x" * 200):
-            with self.subTest(bad=bad), self.assertRaises((ValueError, session.SessionError)):
+            with (
+                self.subTest(bad=bad),
+                self.assertRaises((ValueError, session.SessionError)),
+            ):
                 session.create(bad)
         s = session.create("gamma")
         for bad in ("../../evil", "x/y", ".z"):
@@ -61,11 +69,25 @@ class SessionTest(TempHome):
 
     def test_chat_log_writes_each_line_once(self):
         s = session.create("chat")
-        lines = [{"id": 1, "tick": 10, "from": "A", "text": "hi"}, {"id": 2, "tick": 12, "from": "B", "text": "yo"}]
+        lines = [
+            {"id": 1, "tick": 10, "from": "A", "text": "hi"},
+            {"id": 2, "tick": 12, "from": "B", "text": "yo"},
+        ]
         s.log_chat(lines)
-        s.log_chat(lines + [{"id": 3, "tick": 20, "from": "A", "text": "again"}])
+        s.log_chat(
+            lines + [{"id": 3, "tick": 20, "from": "A", "text": "again"}]
+        )
         self.assertEqual(len((s.dir / "chat.log").read_text().splitlines()), 3)
-        s.log_chat([{"id": 1, "tick": 5, "from": "A", "text": "after loading an older save"}])
+        s.log_chat(
+            [
+                {
+                    "id": 1,
+                    "tick": 5,
+                    "from": "A",
+                    "text": "after loading an older save",
+                }
+            ]
+        )
         self.assertEqual(len((s.dir / "chat.log").read_text().splitlines()), 4)
 
 
@@ -81,23 +103,46 @@ class LayerTest(TempHome):
         patcher = mock.patch.object(paths, "LAYERS", self.repo_layers)
         patcher.start()
         self.addCleanup(patcher.stop)
-        self.write(self.repo_layers / "core/knowledge/using.md", "---\ntitle: Using fx\n---\nbody")
-        self.write(self.repo_layers / "base/knowledge/worms.md", "---\ntitle: Worms\ngame: >=2.0\n---\nrange 25")
-        self.write(self.repo_layers / "base/knowledge/old.md", "---\ntitle: Old\ngame: <2.0\n---\n1.1 only")
-        self.write(self.repo_layers / "base/knowledge/sa.md", "---\ntitle: Needs SA\nmods: space-age\n---\nx")
-        self.write(self.repo_layers / "mods/quality/knowledge/worms.md", "---\ntitle: Quality worms\n---\nq")
+        self.write(
+            self.repo_layers / "core/knowledge/using.md",
+            "---\ntitle: Using fx\n---\nbody",
+        )
+        self.write(
+            self.repo_layers / "base/knowledge/worms.md",
+            "---\ntitle: Worms\ngame: >=2.0\n---\nrange 25",
+        )
+        self.write(
+            self.repo_layers / "base/knowledge/old.md",
+            "---\ntitle: Old\ngame: <2.0\n---\n1.1 only",
+        )
+        self.write(
+            self.repo_layers / "base/knowledge/sa.md",
+            "---\ntitle: Needs SA\nmods: space-age\n---\nx",
+        )
+        self.write(
+            self.repo_layers / "mods/quality/knowledge/worms.md",
+            "---\ntitle: Quality worms\n---\nq",
+        )
         self.s = session.create("game", mods=["quality"])
         self.s.update(game_version="2.0.77")
-        self.write(self.s.knowledge_dir / "map.md", "---\ntitle: This map\nauthor: Bob\n---\nore at (1, 2)")
+        self.write(
+            self.s.knowledge_dir / "map.md",
+            "---\ntitle: This map\nauthor: Bob\n---\nore at (1, 2)",
+        )
 
     def test_stack_order_and_overrides(self):
         st = layers.stack(self.s)
-        self.assertEqual([l.name for l in st.layers], ["core", "base", "mod:quality", "user", "session"])
+        self.assertEqual(
+            [l.name for l in st.layers],
+            ["core", "base", "mod:quality", "user", "session"],
+        )
         best, every = layers.effective(st, "knowledge")
         self.assertEqual(best["worms"].layer.name, "mod:quality")
         self.assertNotIn("old", best)
         self.assertNotIn("sa", best)
-        self.assertIn("needs game <2.0", [i.why for i in every if i.id == "old"])
+        self.assertIn(
+            "needs game <2.0", [i.why for i in every if i.id == "old"]
+        )
         self.assertEqual(best["map"].layer.name, "session")
 
     def test_without_the_mod_the_base_item_applies(self):
@@ -112,27 +157,59 @@ class LayerTest(TempHome):
 
     def test_add_and_promote(self):
         st = layers.stack(self.s)
-        path = layers.add(st, "session", "combat/turrets", "Groups of eight hold.", title="Turret groups", tags="combat")
+        path = layers.add(
+            st,
+            "session",
+            "combat/turrets",
+            "Groups of eight hold.",
+            title="Turret groups",
+            tags="combat",
+        )
         self.assertEqual(path, self.s.knowledge_dir / "combat" / "turrets.md")
         dest = layers.promote(st, "knowledge", "combat/turrets", "user")
-        self.assertEqual(dest, self.home / "user" / "knowledge" / "combat" / "turrets.md")
+        self.assertEqual(
+            dest, self.home / "user" / "knowledge" / "combat" / "turrets.md"
+        )
         self.assertIn("promoted_from: session (game)", dest.read_text())
         with self.assertRaises(layers.LayerError):
-            layers.promote(st, "knowledge", "combat/turrets", "user")          # exists already
+            layers.promote(
+                st, "knowledge", "combat/turrets", "user"
+            )  # exists already
         with self.assertRaises((layers.LayerError, ValueError)):
             layers.add(st, "session", "../escape", "x")
-        self.write(self.s.knowledge_dir / "coords.md", "a (1, 2) b (3, 4) c (5, 6)")
+        self.write(
+            self.s.knowledge_dir / "coords.md", "a (1, 2) b (3, 4) c (5, 6)"
+        )
         with self.assertRaisesRegex(layers.LayerError, "coordinates"):
             layers.promote(layers.stack(self.s), "knowledge", "coords", "base")
 
     def test_mod_order_follows_dependencies(self):
         data = Path(self.tmp.name) / "data"
-        for name, deps in (("base", []), ("quality", ["base >= 2.0.0"]), ("elevated-rails", ["base"]),
-                           ("space-age", ["base >= 2.0.0", "elevated-rails >= 2.0.0", "quality >= 2.0.0", "? optional"])):
-            self.write(data / name / "info.json", json.dumps({"name": name, "dependencies": deps}))
+        for name, deps in (
+            ("base", []),
+            ("quality", ["base >= 2.0.0"]),
+            ("elevated-rails", ["base"]),
+            (
+                "space-age",
+                [
+                    "base >= 2.0.0",
+                    "elevated-rails >= 2.0.0",
+                    "quality >= 2.0.0",
+                    "? optional",
+                ],
+            ),
+        ):
+            self.write(
+                data / name / "info.json",
+                json.dumps({"name": name, "dependencies": deps}),
+            )
         fake = install.Install(binary=data / "x", data=data)
-        self.assertEqual(layers.mod_order(["space-age", "quality", "elevated-rails", "base"], fake),
-                         ["base", "elevated-rails", "quality", "space-age"])
+        self.assertEqual(
+            layers.mod_order(
+                ["space-age", "quality", "elevated-rails", "base"], fake
+            ),
+            ["base", "elevated-rails", "quality", "space-age"],
+        )
 
     def test_version_specs(self):
         self.assertTrue(layers.version_ok(">=2.0", (2, 0, 77)))
@@ -154,7 +231,10 @@ class InstallTest(unittest.TestCase):
                 self.assertEqual((binary, data), (exe, root / "data"))
             app = Path(tmp) / "factorio.app"
             (app / "Contents" / "MacOS").mkdir(parents=True)
-            self.assertEqual(install._layout(app), (app / "Contents/MacOS/factorio", app / "Contents/data"))
+            self.assertEqual(
+                install._layout(app),
+                (app / "Contents/MacOS/factorio", app / "Contents/data"),
+            )
             with self.assertRaises(install.InstallError):
                 install._layout(Path(tmp) / "nothing")
 
@@ -163,47 +243,104 @@ class InstallTest(unittest.TestCase):
             steam = Path(tmp) / "Steam"
             (steam / "steamapps").mkdir(parents=True)
             (steam / "steamapps" / "libraryfolders.vdf").write_text(
-                '"libraryfolders"\n{\n "0"\n {\n  "path"  "/games/SteamLibrary"\n }\n}\n')
-            with mock.patch.object(install, "_steam_roots", return_value=[steam]):
-                self.assertEqual(install._steam_libraries(), [steam, Path("/games/SteamLibrary")])
+                '"libraryfolders"\n{\n "0"\n {\n  "path"  '
+                '"/games/SteamLibrary"\n }\n}\n'
+            )
+            with mock.patch.object(
+                install, "_steam_roots", return_value=[steam]
+            ):
+                self.assertEqual(
+                    install._steam_libraries(),
+                    [steam, Path("/games/SteamLibrary")],
+                )
 
     def test_store_installs_only_on_request(self):
         with tempfile.TemporaryDirectory() as tmp:
             steam = Path(tmp) / "Steam"
-            with mock.patch.object(install, "_steam_roots", return_value=[steam]):
+            with mock.patch.object(
+                install, "_steam_roots", return_value=[steam]
+            ):
                 (steam / "steamapps").mkdir(parents=True)
                 default = [str(c) for c in install.candidates()]
-                asked = [str(c) for c in install.candidates(steam=True, gog=True)]
-            self.assertFalse(any("steamapps" in c or "GOG" in c for c in default))
+                asked = [
+                    str(c) for c in install.candidates(steam=True, gog=True)
+                ]
+            self.assertFalse(
+                any("steamapps" in c or "GOG" in c for c in default)
+            )
             self.assertTrue(any("steamapps" in c for c in asked))
             self.assertTrue(any("GOG" in c for c in asked))
-        self.assertEqual(install.store_of("/x/steamapps/common/Factorio/bin/x64/factorio"), "steam")
+        self.assertEqual(
+            install.store_of("/x/steamapps/common/Factorio/bin/x64/factorio"),
+            "steam",
+        )
         self.assertEqual(install.store_of("C:/GOG Games/Factorio"), "gog")
         self.assertEqual(install.store_of("/home/me/factorio"), "")
 
     def test_mod_dependencies(self):
         import zipfile
+
         with tempfile.TemporaryDirectory() as tmp:
             data = Path(tmp) / "data"
-            for name, deps in (("base", []), ("quality", ["base >= 2.0.0"]), ("elevated-rails", ["base"]),
-                               ("space-age", ["base >= 2.0.0", "elevated-rails >= 2.0.0", "quality >= 2.0.0"])):
+            for name, deps in (
+                ("base", []),
+                ("quality", ["base >= 2.0.0"]),
+                ("elevated-rails", ["base"]),
+                (
+                    "space-age",
+                    [
+                        "base >= 2.0.0",
+                        "elevated-rails >= 2.0.0",
+                        "quality >= 2.0.0",
+                    ],
+                ),
+            ):
                 (data / name).mkdir(parents=True)
-                (data / name / "info.json").write_text(json.dumps({"name": name, "dependencies": deps}))
+                (data / name / "info.json").write_text(
+                    json.dumps({"name": name, "dependencies": deps})
+                )
             mods = Path(tmp) / "mods"
             mods.mkdir()
             with zipfile.ZipFile(mods / "big-mod_1.2.0.zip", "w") as z:
-                z.writestr("big-mod_1.2.0/info.json", json.dumps(
-                    {"name": "big-mod", "dependencies": ["base", "lib-mod >= 1", "? optional-mod", "! enemy-mod", "(?) hidden"]}))
+                z.writestr(
+                    "big-mod_1.2.0/info.json",
+                    json.dumps(
+                        {
+                            "name": "big-mod",
+                            "dependencies": [
+                                "base",
+                                "lib-mod >= 1",
+                                "? optional-mod",
+                                "! enemy-mod",
+                                "(?) hidden",
+                            ],
+                        }
+                    ),
+                )
             with zipfile.ZipFile(mods / "lib-mod_1.0.0.zip", "w") as z:
-                z.writestr("lib-mod_1.0.0/info.json", json.dumps({"name": "lib-mod", "dependencies": ["~ base"]}))
+                z.writestr(
+                    "lib-mod_1.0.0/info.json",
+                    json.dumps({"name": "lib-mod", "dependencies": ["~ base"]}),
+                )
             game = install.Install(binary=data / "x", data=data)
-            self.assertEqual(install.with_dependencies(["space-age"], game), ["base", "space-age", "elevated-rails", "quality"])
-            self.assertEqual(install.with_dependencies(["big-mod"], game, mods), ["base", "big-mod", "lib-mod"])
+            self.assertEqual(
+                install.with_dependencies(["space-age"], game),
+                ["base", "space-age", "elevated-rails", "quality"],
+            )
+            self.assertEqual(
+                install.with_dependencies(["big-mod"], game, mods),
+                ["base", "big-mod", "lib-mod"],
+            )
 
     def test_version_notes(self):
         old = install.Install(Path("x"), Path("y"), version=(1, 1, 110))
         from fxa import GAME_TESTED
-        new = install.Install(Path("x"), Path("y"), version=(GAME_TESTED[0], GAME_TESTED[1] + 1, 0))
+
+        new = install.Install(
+            Path("x"),
+            Path("y"),
+            version=(GAME_TESTED[0], GAME_TESTED[1] + 1, 0),
+        )
         self.assertIn("too old", install.version_notes(old)[0])
         self.assertIn("selftest", install.version_notes(new)[0])
 
@@ -217,7 +354,11 @@ class FakeGame:
     def call(self, op, **args):
         if op == "entities":
             name = args.get("name")
-            return {"entities": [e for e in self.ents if not name or e["name"] == name]}
+            return {
+                "entities": [
+                    e for e in self.ents if not name or e["name"] == name
+                ]
+            }
         if op == "state":
             return self.state()
         if op == "exists":
@@ -229,7 +370,9 @@ class FakeGame:
 
     def do(self, orders, max_ticks=36000):
         self.done.append(list(orders))
-        return G.Report({"reason": "done", "results": [{"ok": True} for _ in orders]})
+        return G.Report(
+            {"reason": "done", "results": [{"ok": True} for _ in orders]}
+        )
 
     resume = do
 
@@ -240,31 +383,94 @@ class BaseSkillsTest(unittest.TestCase):
         return skills.run(st, name, params, fake)
 
     def test_burners_round(self):
-        fake = FakeGame([
-            {"name": "burner-mining-drill", "x": 100, "y": 10, "mining": "coal", "fuel": 45},
-            {"name": "burner-mining-drill", "x": 100, "y": 20, "mining": "iron-ore", "fuel": 0},
-            {"name": "stone-furnace", "x": 100, "y": 18, "fuel": 8,
-             "items": {"fuel": {"coal": 8}, "crafter_output": {"iron-plate": 30}}},
-            {"name": "stone-furnace", "x": 102, "y": 18, "fuel": 12, "items": {"fuel": {"coal": 12}}},
-            {"name": "small-electric-pole", "x": 90, "y": 18},
-        ], {"coal": 3})
+        fake = FakeGame(
+            [
+                {
+                    "name": "burner-mining-drill",
+                    "x": 100,
+                    "y": 10,
+                    "mining": "coal",
+                    "fuel": 45,
+                },
+                {
+                    "name": "burner-mining-drill",
+                    "x": 100,
+                    "y": 20,
+                    "mining": "iron-ore",
+                    "fuel": 0,
+                },
+                {
+                    "name": "stone-furnace",
+                    "x": 100,
+                    "y": 18,
+                    "fuel": 8,
+                    "items": {
+                        "fuel": {"coal": 8},
+                        "crafter_output": {"iron-plate": 30},
+                    },
+                },
+                {
+                    "name": "stone-furnace",
+                    "x": 102,
+                    "y": 18,
+                    "fuel": 12,
+                    "items": {"fuel": {"coal": 12}},
+                },
+                {"name": "small-electric-pole", "x": 90, "y": 18},
+            ],
+            {"coal": 3},
+        )
         result = self.run_skill("burners", fake)
-        self.assertEqual(fake.done, [[G.take(100, 10, "coal", 40), G.put(100, 20, "coal", 10),
-                                      G.put(100, 18, "coal", 2), G.take(100, 18)]])
+        self.assertEqual(
+            fake.done,
+            [
+                [
+                    G.take(100, 10, "coal", 40),
+                    G.put(100, 20, "coal", 10),
+                    G.put(100, 18, "coal", 2),
+                    G.take(100, 18),
+                ]
+            ],
+        )
         self.assertEqual(result.value["refuelled"], 2)
 
     def test_turrets_emptiest_first(self):
-        fake = FakeGame([
-            {"name": "gun-turret", "x": 1, "y": 1, "items": {"turret_ammo": {"firearm-magazine": 12}}},
-            {"name": "gun-turret", "x": 2, "y": 2},
-            {"name": "gun-turret", "x": 3, "y": 3, "items": {"turret_ammo": {"firearm-magazine": 40}}},
-        ], {"firearm-magazine": 100})
+        fake = FakeGame(
+            [
+                {
+                    "name": "gun-turret",
+                    "x": 1,
+                    "y": 1,
+                    "items": {"turret_ammo": {"firearm-magazine": 12}},
+                },
+                {"name": "gun-turret", "x": 2, "y": 2},
+                {
+                    "name": "gun-turret",
+                    "x": 3,
+                    "y": 3,
+                    "items": {"turret_ammo": {"firearm-magazine": 40}},
+                },
+            ],
+            {"firearm-magazine": 100},
+        )
         self.run_skill("turrets", fake)
-        self.assertEqual(fake.done, [[G.put(2, 2, "firearm-magazine", 40), G.put(1, 1, "firearm-magazine", 28)]])
+        self.assertEqual(
+            fake.done,
+            [
+                [
+                    G.put(2, 2, "firearm-magazine", 40),
+                    G.put(1, 1, "firearm-magazine", 28),
+                ]
+            ],
+        )
 
     def test_params_parse(self):
-        self.assertEqual(skills.parse_params(["r=40", "collect=false", "name=iron", "pts=[[1,2]]"]),
-                         {"r": 40, "collect": False, "name": "iron", "pts": [[1, 2]]})
+        self.assertEqual(
+            skills.parse_params(
+                ["r=40", "collect=false", "name=iron", "pts=[[1,2]]"]
+            ),
+            {"r": 40, "collect": False, "name": "iron", "pts": [[1, 2]]},
+        )
 
     def test_every_shipped_skill_passes_the_check(self):
         for path in sorted(paths.LAYERS.rglob("*.fxs")):

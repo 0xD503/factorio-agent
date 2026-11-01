@@ -9,7 +9,8 @@ AUTH_RESPONSE = 2
 EXEC = 2
 RESPONSE = 0
 
-# A packet is: int32 size, int32 id, int32 type, body, two NUL bytes (all little-endian).
+# A packet is: int32 size, int32 id, int32 type, body, two NUL bytes (all
+# little-endian).
 # `size` counts everything after itself, so the smallest valid value is 10.
 MIN_PACKET_SIZE = 10
 MAX_PACKET_SIZE = 16 * 1024 * 1024
@@ -25,7 +26,9 @@ class AuthError(RconError):
 
 def encode_packet(packet_id, packet_type, body):
     payload = body.encode("utf-8") + b"\x00\x00"
-    return struct.pack("<iii", 8 + len(payload), packet_id, packet_type) + payload
+    return (
+        struct.pack("<iii", 8 + len(payload), packet_id, packet_type) + payload
+    )
 
 
 def _recv_exact(sock, count):
@@ -45,7 +48,11 @@ def read_packet(sock):
         raise RconError(f"invalid packet size {size}")
     payload = _recv_exact(sock, size)
     packet_id, packet_type = struct.unpack_from("<ii", payload)
-    return packet_id, packet_type, payload[8:-2].decode("utf-8", errors="replace")
+    return (
+        packet_id,
+        packet_type,
+        payload[8:-2].decode("utf-8", errors="replace"),
+    )
 
 
 class RconClient:
@@ -66,9 +73,13 @@ class RconClient:
 
     def connect(self):
         try:
-            self._sock = socket.create_connection((self.host, self.port), timeout=self.timeout)
+            self._sock = socket.create_connection(
+                (self.host, self.port), timeout=self.timeout
+            )
         except OSError as err:
-            raise RconError(f"cannot connect to {self.host}:{self.port}: {err}") from err
+            raise RconError(
+                f"cannot connect to {self.host}:{self.port}: {err}"
+            ) from err
         auth_id = next(self._ids)
         self._send(auth_id, AUTH, self.password)
         while True:
@@ -94,7 +105,8 @@ class RconClient:
                 return body
 
     def lua(self, code):
-        """Run Lua in the game. The code returns a value by calling rcon.print()."""
+        """Run Lua in the game. The code returns a value by calling
+        rcon.print()."""
         return self.command("/silent-command " + code)
 
     def _send(self, packet_id, packet_type, body):

@@ -1,11 +1,12 @@
 """Python side of the agent interface.
 
     game = Game.for_session()          # the current session's server
-    game.do(mine(name="iron-ore", x=40, y=-80, count=10), craft("iron-gear-wheel", 2))
+    game.do(mine(name="iron-ore", x=40, y=-80, count=10),
+    craft("iron-gear-wheel", 2))
 
-`do` queues orders, lets them run until they finish (or something needs attention) and
-returns a Report. In solo mode the game is paused whenever no call is running; in co-op it
-runs in real time and `do` just waits.
+`do` queues orders, lets them run until they finish (or something needs
+attention) and returns a Report. In solo mode the game is paused whenever no
+call is running; in co-op it runs in real time and `do` just waits.
 """
 
 import json
@@ -23,7 +24,9 @@ class GameError(Exception):
 
 def _order(type_, /, **fields):
     order = {"type": type_}
-    order.update({key: value for key, value in fields.items() if value is not None})
+    order.update(
+        {key: value for key, value in fields.items() if value is not None}
+    )
     return order
 
 
@@ -32,8 +35,11 @@ def walk(x, y, radius=None):
 
 
 def mine(x=None, y=None, name=None, kind=None, count=None, radius=None):
-    """Mine `count` units of ore, or `count` entities (trees, rocks, buildings), near (x, y)."""
-    return _order("mine", x=x, y=y, name=name, kind=kind, count=count, radius=radius)
+    """Mine `count` units of ore, or `count` entities (trees, rocks, buildings),
+    near (x, y)."""
+    return _order(
+        "mine", x=x, y=y, name=name, kind=kind, count=count, radius=radius
+    )
 
 
 def craft(recipe, count=1, wait=False):
@@ -41,18 +47,41 @@ def craft(recipe, count=1, wait=False):
 
 
 def uncraft(recipe, count=None):
-    """Cancel queued hand-crafts of `recipe` (all, or `count`); the ingredients come back."""
+    """Cancel queued hand-crafts of `recipe` (all, or `count`); the ingredients
+    come back."""
     return _order("uncraft", recipe=recipe, count=count)
 
 
-def wait(ticks=None, craft=None, have=None, item=None, count=None, x=None, y=None, max=None):
-    """Wait for ticks, for hand-crafting to finish (craft=True), until the character
-    has `count` of `have`, or until the entity at (x, y) holds `count` of `item`."""
-    return _order("wait", ticks=ticks, craft=craft, have=have, item=item, count=count, x=x, y=y, max=max)
+def wait(
+    ticks=None,
+    craft=None,
+    have=None,
+    item=None,
+    count=None,
+    x=None,
+    y=None,
+    max=None,
+):
+    """Wait for ticks, for hand-crafting to finish (craft=True), until the
+    character has `count` of `have`, or until the entity at (x, y) holds `count`
+    of `item`."""
+    return _order(
+        "wait",
+        ticks=ticks,
+        craft=craft,
+        have=have,
+        item=item,
+        count=count,
+        x=x,
+        y=y,
+        max=max,
+    )
 
 
 def place(item, x, y, dir=None, recipe=None, ug_type=None):
-    return _order("place", item=item, x=x, y=y, dir=dir, recipe=recipe, ug_type=ug_type)
+    return _order(
+        "place", item=item, x=x, y=y, dir=dir, recipe=recipe, ug_type=ug_type
+    )
 
 
 def put(x, y, item, count=None):
@@ -72,7 +101,8 @@ def rotate(x, y, dir=None):
 
 
 def filter(x, y, *items):
-    """Let the inserter at (x, y) move only these items; no items removes the filter."""
+    """Let the inserter at (x, y) move only these items; no items removes the
+    filter."""
     return _order("filter", x=x, y=y, items=list(items))
 
 
@@ -90,12 +120,14 @@ def pickup(x=None, y=None, ticks=None):
 
 
 def equip(item, slot=None):
-    """Move a gun, armour or ammunition from the main inventory into its slot."""
+    """Move a gun, armour or ammunition from the main inventory into its
+    slot."""
     return _order("equip", item=item, slot=slot)
 
 
 class Report:
-    """Outcome of a run: per-order results, events, and the character's state after it."""
+    """Outcome of a run: per-order results, events, and the character's state
+    after it."""
 
     def __init__(self, raw):
         self.raw = raw
@@ -119,6 +151,7 @@ class Report:
 
     def __str__(self):
         from fxa import fmt
+
         return fmt.report(self)
 
 
@@ -129,11 +162,15 @@ class Game:
         try:
             self.client = target.connect()
         except (RconError, OSError) as err:
-            raise GameError(f"cannot reach the game server {target.label or target.host} ({err}); is it running?") from err
+            raise GameError(
+                f"cannot reach the game server {target.label or target.host} "
+                f"({err}); is it running?"
+            ) from err
 
     @classmethod
     def for_session(cls, spec=None):
         from fxa import server, session
+
         s = session.current(spec)
         try:
             return cls(server.Server(s).target(), s)
@@ -151,19 +188,29 @@ class Game:
 
     def call(self, op, **args):
         request = {"op": op}
-        request.update({key: value for key, value in args.items() if value is not None})
-        raw = self.client.command("/agent " + json.dumps(request, separators=(",", ":")))
+        request.update(
+            {key: value for key, value in args.items() if value is not None}
+        )
+        raw = self.client.command(
+            "/agent " + json.dumps(request, separators=(",", ":"))
+        )
         try:
             reply = json.loads(raw)
         except ValueError:
-            raise GameError(f"unexpected reply to {op}: {raw.strip()[:400]!r}") from None
+            raise GameError(
+                f"unexpected reply to {op}: {raw.strip()[:400]!r}"
+            ) from None
         if not reply.get("ok"):
             raise GameError(reply.get("error") or "unknown error")
         return reply
 
     def batch(self, *requests):
-        """Several requests in one round trip: batch(("state", {}), ("chat", {"since": 3}))."""
-        reply = self.call("batch", requests=[{"op": op, **(args or {})} for op, args in requests])
+        """Several requests in one round trip: batch(("state", {}), ("chat",
+        {"since": 3}))."""
+        reply = self.call(
+            "batch",
+            requests=[{"op": op, **(args or {})} for op, args in requests],
+        )
         return list(reply.get("replies") or [])
 
     def enqueue(self, *orders):
@@ -171,7 +218,11 @@ class Game:
         for order in orders:
             flat.extend(order if isinstance(order, (list, tuple)) else [order])
         for start in range(0, len(flat), ENQUEUE_CHUNK):
-            self.call("enqueue", orders=flat[start:start + ENQUEUE_CHUNK], base=start)
+            self.call(
+                "enqueue",
+                orders=flat[start : start + ENQUEUE_CHUNK],
+                base=start,
+            )
         return len(flat)
 
     def run(self, ticks=600, until_idle=False):
@@ -182,8 +233,9 @@ class Game:
     def wait_for_pause(self, stall=15.0):
         """Collect the report of the run in progress (or of the last one).
 
-        In co-op the server pauses itself while nobody is connected (auto_pause); if the tick
-        stops moving for `stall` seconds the run is halted and reported as "game paused"."""
+        In co-op the server pauses itself while nobody is connected
+        (auto_pause); if the tick stops moving for `stall` seconds the run is
+        halted and reported as "game paused"."""
         delay = 0.004
         last_tick, since = None, time.time()
         while True:
@@ -202,7 +254,8 @@ class Game:
             delay = min(delay * 1.5, 0.25)
 
     def do(self, *orders, max_ticks=36000, check=False):
-        """Queue orders and run until they are finished, fail, or something interrupts."""
+        """Queue orders and run until they are finished, fail, or something
+        interrupts."""
         self.enqueue(*orders)
         report = self.run(max_ticks, until_idle=True)
         if check and not report.ok:
@@ -210,19 +263,23 @@ class Game:
         return report
 
     def resume(self, max_ticks=36000):
-        """Continue the queue after an interruption, or rejoin a run still in progress."""
+        """Continue the queue after an interruption, or rejoin a run still in
+        progress."""
         if self.call("status").get("running"):
             return self.wait_for_pause()
         return self.run(max_ticks, until_idle=True)
 
     def save(self, name, timeout=180.0):
-        """Write a checkpoint save; with a local session, wait until the file is complete."""
+        """Write a checkpoint save; with a local session, wait until the file is
+        complete."""
         from fxa import paths
+
         paths.check_name(name, "save name")
         if not self.session or self.session.meta.get("attach"):
             self.call("save", name=name)
             return name
         from fxa import server
+
         path = self.session.save_path(name)
         before = path.stat().st_mtime_ns if path.exists() else None
         self.call("save", name=name)
@@ -243,7 +300,8 @@ class Game:
         return list(self.call("players").get("players") or [])
 
     def wait_chat(self, since, timeout=60.0, mention_only=False, poll=0.5):
-        """Block until chat lines newer than `since` arrive (or `timeout` seconds pass)."""
+        """Block until chat lines newer than `since` arrive (or `timeout`
+        seconds pass)."""
         deadline = time.time() + timeout
         while True:
             lines, seq = self.chat(since=since)
