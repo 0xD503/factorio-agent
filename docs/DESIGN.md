@@ -108,7 +108,8 @@ observation limits described above.
 - The harness only runs the configured binary, with its own config and write-data directory.
   It never writes into an install, and it reads only the client's `mod-list.json` and mod files
   (to copy them).
-- Players install from release archives: an annotated tag plus zip and tar.gz from `git archive`,
+- Players install from release archives (without the dev container and CI files, which are
+  `export-ignore`): an annotated tag plus zip and tar.gz from `git archive`,
   with checksums (`tools/release.py`). `fxa/_build.py` gets the commit stamped in through
   `export-subst`, and `fx doctor` prints it. An upgrade replaces the folder. All state lives in
   the data directory.

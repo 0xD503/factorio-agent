@@ -241,7 +241,12 @@ def cmd_setup(args):
     game = cfg.setdefault("game", {})
     if args.game:
         found = install.probe(args.game)
-        game["server"] = game["client"] = str(found.binary)
+        game["server"] = str(found.binary)
+        if found.headless:
+            print("note: that is a headless build: it runs the servers but cannot be played; "
+                  "give the game you play with as --client-game")
+        else:
+            game["client"] = str(found.binary)
     if args.server_game:
         game["server"] = str(install.probe(args.server_game).binary)
     if args.client_game:
@@ -303,7 +308,12 @@ def cmd_doctor(args):
                 mods = install.enabled_mods(found)
                 print(f"      mods enabled in your game: {', '.join(mods) if mods else 'unknown (no mod-list.json)'}")
         except install.InstallError as err:
-            line(False, f"{role}: {err}")
+            if role == "client":
+                # Only needed to open the game (fx join) and to copy its mod list; servers and
+                # development containers have none.
+                print(f"note  client: none configured (needed for fx join and for using your game's mods): {err}")
+            else:
+                line(False, f"{role}: {err}")
     try:
         server.free_port("udp", "0.0.0.0", 34197, tries=1)
         line(True, "UDP port 34197 is free (default co-op port)")

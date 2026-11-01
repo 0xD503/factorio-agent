@@ -19,8 +19,9 @@ user guide. Then open your agent in that folder and say "let's play Factorio".
 Needs Factorio 2.0 or newer and Python 3.10+ (standard library only). Linux is tested. Windows
 and macOS are supported in the code but untested. Status: v0.1 developer build.
 
-Developing the harness itself: clone the repository and read the "Changing the harness" part of
-[AGENTS.md](AGENTS.md); releases are made with `tools/release.py`.
+Developing the harness itself: clone the repository and open it in the dev container
+(`.devcontainer/`; the host needs only a container engine, a POSIX shell and git), then read the
+"Changing the harness" part of [AGENTS.md](AGENTS.md). Releases are made with `tools/release.py`.
 
 ## License
 

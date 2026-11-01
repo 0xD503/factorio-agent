@@ -4,36 +4,36 @@
 name: tests
 
 on:
-  push:
-  pull_request:
+    push:
+    pull_request:
 
 jobs:
-  offline:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ["3.10", "3.13"]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
-      - run: python -m unittest discover -s tests -v
-      - run: python fx.py doctor
-        continue-on-error: true      # no game on the runner; checks that the CLI starts on every OS
+    offline:
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, windows-latest, macos-latest]
+                python: ["3.10", "3.13"]
+        runs-on: ${{ matrix.os }}
+        steps:
+            -   uses: actions/checkout@v4
+            -   uses: actions/setup-python@v5
+                with:
+                    python-version: ${{ matrix.python }}
+            -   run: python -m unittest discover -s tests -v
+            -   run: python fx.py doctor
+                continue-on-error: true    # no game on the runner; checks that the CLI starts on every OS
 
-  selftest:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Download the Factorio headless server
-        run: |
-          curl -fsSL -o headless.tar.xz https://factorio.com/get-download/stable/headless/linux64
-          mkdir -p "$RUNNER_TEMP/factorio" && tar -xJf headless.tar.xz -C "$RUNNER_TEMP/factorio"
-      - run: python fx.py setup --game "$RUNNER_TEMP/factorio/factorio"
-      - run: python fx.py selftest
+    selftest:
+        runs-on: ubuntu-latest
+        steps:
+            -   uses: actions/checkout@v4
+            -   uses: actions/setup-python@v5
+                with:
+                    python-version: "3.12"
+            -   name: Download the Factorio headless server
+                run: |
+                    curl -fsSL -o headless.tar.xz https://factorio.com/get-download/stable/headless/linux64
+                    mkdir -p "$RUNNER_TEMP/factorio" && tar -xJf headless.tar.xz -C "$RUNNER_TEMP/factorio"
+            -   run: python fx.py setup --server-game "$RUNNER_TEMP/factorio/factorio"
+            -   run: python fx.py selftest

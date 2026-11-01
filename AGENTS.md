@@ -133,6 +133,15 @@ Rules:
 
 Development workflow:
 
+- The dev container (`.devcontainer/`) has everything needed: Python 3.10 (the oldest
+  supported), git, gh and the Factorio headless server. The host needs only a container engine,
+  a POSIX shell and git. Open the repository in it with VS Code Dev Containers or the devcontainer
+  CLI, or `podman|docker build -t factorio-agent-dev .devcontainer` and run the tests in it.
+- Follow `.editorconfig`: UTF-8, LF (CRLF only for `fx.cmd`), final newline, 4 spaces, no tabs,
+  no trailing whitespace. `tests/test_style.py` checks every file.
+- Use the developer's git configuration as it is: never pass `-c user.name`/`-c user.email`,
+  never choose a branch name at `git init`, never disable commit signing. If git has no identity
+  inside the repository, stop and ask.
 - Offline tests: `python3 -m unittest discover -s tests` (seconds, no game). Live tests:
   `./fx selftest` (a throwaway session in a temporary data directory, about 15 seconds).
 - Never hard-code anything about the machine you run on: paths, user names, installs. Machine

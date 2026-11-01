@@ -209,12 +209,15 @@ def configured(role, override=None):
                           ("config.json", cfg.get(role)), ("config.json", cfg.get("path"))):
         if value:
             try:
-                return probe(value)
+                found = probe(value)
             except InstallError as err:
                 raise InstallError(f"{source} names {value}: {err}") from None
+            if role == "client" and found.headless and source in ("FACTORIO_PATH", "config.json"):
+                continue                                 # shared setting naming a server build: no client
+            return found
     found = search()
     if role == "client":
-        found = [i for i in found if not i.headless] or found
+        found = [i for i in found if not i.headless]    # a headless build cannot open a game window
     if not found:
         raise InstallError("Factorio was not found. Run `fx setup --game PATH` with the folder Factorio is installed in "
                            "(the one containing bin/ and data/), or `fx setup --steam` / `--gog` to use a store install.")

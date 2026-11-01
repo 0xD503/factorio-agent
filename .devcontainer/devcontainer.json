@@ -1,0 +1,27 @@
+// Development container: https://containers.dev (VS Code Dev Containers, devcontainer CLI, ...).
+// Host requirements: a container engine (Docker or Podman), a POSIX shell, git.
+{
+    "name": "factorio-agent",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "args": {
+            // A version number (e.g. "2.1.24") pins the headless server; "stable" takes the newest stable release.
+            "FACTORIO_VERSION": "stable"
+        }
+    },
+    "remoteUser": "dev",
+    "updateRemoteUserUID": true,
+    // The live tests use a temporary data directory; this checks the tools and runs them once.
+    "postCreateCommand": "python3 fx.py doctor; python3 fx.py selftest",
+    // To join a co-op server started in the container from the game on your machine, publish its port:
+    // "runArgs": ["--publish", "127.0.0.1:34197:34197/udp"],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "EditorConfig.EditorConfig",
+                "ms-python.python",
+                "sumneko.lua"
+            ]
+        }
+    }
+}

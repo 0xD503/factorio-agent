@@ -7,3 +7,7 @@ fxa/_build.py export-subst
 fx text eol=lf
 *.py text eol=lf
 fx.cmd -text
+
+# Development and CI files stay in the repository, out of the release archives.
+.devcontainer/ export-ignore
+.github/ export-ignore
