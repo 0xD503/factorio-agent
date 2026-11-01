@@ -1,0 +1,13 @@
+[project]
+name = "factorio-agent"
+version = "0.1.0.dev0"
+description = "Let an AI agent play Factorio through a text interface, solo or in multiplayer."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+fx = "fxa.cli:main"
+
+[tool.setuptools]
+packages = ["fxa"]

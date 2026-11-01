@@ -1,0 +1,55 @@
+"""Find inserters stuck holding an item their machine cannot take, and put them back.
+
+When the machine an inserter feeds is missing for a moment (being rebuilt or upgraded), the
+inserter grabs whatever passes, e.g. belts or gears off a mixed lane, and then waits forever
+once the machine is back. Mining and re-placing the inserter returns the item to the
+character and resets it.
+"""
+
+META = {
+    "params": {"x": "centre (default: the character)", "y": "centre", "r": "radius, default 30",
+               "fix": "mine and re-place them, default true"},
+    "game": ">=2.0",
+    "verified": "2.0.77",
+}
+
+
+def ingredients_of(name, cache):
+    if name not in cache:
+        found = seq(recipe(name=name).get("recipes"))
+        cache[name] = list((found[0].get("ingredients") or {}).keys()) if found else []
+    return cache[name]
+
+
+def stuck(found):
+    machines = [e for e in found if e.get("recipe")]
+    cache = {}
+    out = []
+    for e in found:
+        if "inserter" not in e["name"] or not e.get("held") or e.get("status") != "waiting_for_space_in_destination":
+            continue
+        dx, dy = e["drop"]
+        target = None
+        for m in machines:
+            if abs(m["x"] - dx) <= 1.5 and abs(m["y"] - dy) <= 1.5:
+                target = m
+                break
+        if target and e["held"] not in ingredients_of(target["recipe"], cache):
+            out.append(e)
+    return out
+
+
+def main(x=None, y=None, r=30, fix=True):
+    ch = state().get("character") or {}
+    if x is None or y is None:
+        x, y = ch.get("x", 0), ch.get("y", 0)
+    bad = stuck(entities(x=x, y=y, r=r, limit=2000))
+    names = [f"{e['name']} at ({e['x']}, {e['y']}) holding {e['held']}" for e in bad]
+    for line in names:
+        print(line)
+    if fix and bad:
+        orders = []
+        for e in bad:
+            orders += [mine(e["x"], e["y"]), place(e["name"], e["x"], e["y"], e.get("dir"))]
+        go(orders, "unjam")
+    return {"stuck": len(bad)}

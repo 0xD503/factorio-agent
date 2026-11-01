@@ -1,0 +1,59 @@
+"""Top up gun turrets with magazines, emptiest first.
+
+A turret keeps the kind of ammunition it already holds; an empty one gets piercing rounds
+when the character carries them, otherwise ordinary magazines. Carries on through alerts,
+since a round along the edge of a base often meets enemies.
+"""
+
+META = {
+    "params": {"x": "centre (default: the character)", "y": "centre", "r": "radius, default 120",
+               "target": "magazines each turret should hold, default 40"},
+    "requires": ["gun-turret", "firearm-magazine"],
+    "game": ">=2.0",
+    "verified": "2.0.77",
+}
+
+PIERCING = "piercing-rounds-magazine"
+BASIC = "firearm-magazine"
+
+
+def restock_orders(turrets, target, stock):
+    needs = []
+    for turret in turrets:
+        held = {}
+        for counts in (turret.get("items") or {}).values():
+            for name, n in counts.items():
+                held[name] = held.get(name, 0) + n
+        have = sum(held.values())
+        if have < target:
+            if held:
+                kind = list(held.keys())[0]
+            elif stock.get(PIERCING, 0) > 0:
+                kind = PIERCING
+            else:
+                kind = BASIC
+            needs.append((have, turret["x"], turret["y"], target - have, kind))
+    orders = []
+    left = dict(stock)
+    for have, x, y, want, kind in sorted(needs):
+        want = min(want, left.get(kind, 0))
+        if want <= 0:
+            continue
+        left[kind] = left[kind] - want
+        orders.append(put(x, y, kind, want))
+    return orders
+
+
+def main(x=None, y=None, r=120, target=40):
+    ch = state().get("character") or {}
+    if x is None or y is None:
+        x, y = ch.get("x", 0), ch.get("y", 0)
+    inv = ch.get("inventory") or {}
+    stock = {BASIC: inv.get(BASIC, 0), PIERCING: inv.get(PIERCING, 0)}
+    turrets = entities(x=x, y=y, r=r, name="gun-turret", limit=500)
+    orders = restock_orders(turrets, target, stock)
+    damaged = len([t for t in turrets if "hp" in t])
+    summary = {"turrets": len(turrets), "below_target": len(orders), "damaged": damaged}
+    if orders:
+        summary["result"] = go(orders, "restock turrets", 40000)["reason"]
+    return summary
