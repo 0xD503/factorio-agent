@@ -12,12 +12,12 @@ The first agent to use it (Claude) went from an empty default map to a rocket la
 - **For AI agents**: [AGENTS.md](AGENTS.md) is the manual. Claude Code also reads `CLAUDE.md`.
 - **For developers**: [docs/DESIGN.md](docs/DESIGN.md) covers architecture, safety model and design decisions.
 
-```
-git clone <repository URL> factorio-agent && cd factorio-agent
-./fx doctor && ./fx setup          # Windows: fx.cmd doctor, fx.cmd setup
-```
+Install: download a release archive, extract it, then from inside the folder run
+`./fx doctor`, `./fx setup` and `./fx selftest` (Windows: `fx.cmd ...`). Details are in the
+user guide. Then open your agent in that folder and say "let's play Factorio".
 
-Then open your agent in this folder and say "let's play Factorio".
+Needs Factorio 2.0 or newer and Python 3.10+ (standard library only). Linux is tested. Windows
+and macOS are supported in the code but untested. Status: v0.1 developer build.
 
-Needs Factorio 2.0 and Python 3.10+ (standard library only). Linux is tested. Windows and
-macOS are supported in the code but untested. Status: v0.1 developer build.
+Developing the harness itself: clone the repository and read the "Changing the harness" part of
+[AGENTS.md](AGENTS.md); releases are made with `tools/release.py`.

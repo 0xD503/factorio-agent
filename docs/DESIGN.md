@@ -44,6 +44,7 @@ The agent is a script-driven character on a server the harness can reach over RC
 a game client. As a result:
 
 - No Factorio account or licence is needed for the agent; humans join with their own.
+- Joining as a real player is the planned next step: see "Client mode" below.
 - The server can be the harness's own (the usual case; the full game works as a dedicated
   server too, so no separate download is needed) or a dedicated server elsewhere that runs a
   prepared save and grants RCON (`fx attach`). A game hosted from the game window cannot be
@@ -97,11 +98,31 @@ Fair play is a separate rule from safety. The CLI has no way to run arbitrary Lu
 in-game operations only do what a player could do through their character, with the
 observation limits described above.
 
+## Installs, distribution and mods
+
+- Nothing about the machine is hard-coded. The game installs are found at run time: flags,
+  `FACTORIO_SERVER`/`FACTORIO_CLIENT`/`FACTORIO_PATH`, `config.json` written by `fx setup`, or a
+  search of standalone install locations. Steam and GOG installs are searched, used or recorded
+  only on request (`fx setup --steam` or `fx setup --gog`, or an explicit path), because they are the user's
+  main copy, managed by the store.
+- The harness only runs the configured binary, with its own config and write-data directory.
+  It never writes into an install, and it reads only the client's `mod-list.json` and mod files
+  (to copy them).
+- Players install from release archives: an annotated tag plus zip and tar.gz from `git archive`,
+  with checksums (`tools/release.py`). `fxa/_build.py` gets the commit stamped in through
+  `export-subst`, and `fx doctor` prints it. An upgrade replaces the folder. All state lives in
+  the data directory.
+- A selftest pass is recorded per install and version in `config.json`. Doctor and server start
+  warn until the configured server has passed on its current version.
+- Mods: a new session copies the list of mods enabled in the user's game, so the user can join
+  without a mod download. An existing session never changes by itself: adding or removing a
+  mod changes the map. Differences are reported, and `fx session mods --sync` adopts them.
+
 ## Game versions
 
 - Python never hard-codes game data. Recipes, technologies and prototypes come from the running
   game (`fx recipe`, `fx call exists`).
-- The Lua uses the 2.0 API and refuses to load on older versions. `fxa/__init__.py` records the
+- The Lua uses the 2.0 API (and nothing removed since) and refuses to load on older versions. `fxa/__init__.py` records the
   newest tested version. Newer ones get a warning and a hint to run `fx selftest`.
 - Sessions record the game version they last ran on, and a change is reported at start.
   Knowledge items carry `verified:` and optionally a `game:` range.
@@ -133,6 +154,24 @@ setup (Python ships with most Linux systems and installs in one command on Windo
 also cost the agent's ability to read and improve the harness without a toolchain. Skills
 stay in a Python subset because models write Python best, and because the subset can be
 interpreted safely. Revisit if profiling ever shows the harness in the critical path.
+
+## Client mode (planned)
+
+The aim is to let the agent join as a real player, with its own account and game window, so it
+shows in the player list and needs no RCON from the host. Factorio 2.0 makes this possible:
+
+- The agent's game client starts with `--enable-lua-udp PORT`. The harness sends orders to that
+  port. The script (in the save, on every peer) calls `helpers.recv_udp(player_index)` each tick.
+  The game turns received packets into `on_udp_packet_received` events, dispatched the same way
+  on every peer. Replies go back with `helpers.send_udp(port, data, player_index)`.
+- The orders and observations are the ones used today, applied to that player's character
+  instead of a script-created one. The in-game state moves from one agent to one per player
+  index.
+- What it still needs: the script in the save (a prepared save on a server run by anyone), a
+  second Factorio account (one account cannot be connected twice), and a running game window
+  for the agent.
+- It does not make arbitrary public servers playable: without the script in their save there is
+  nothing to receive the orders.
 
 ## Known limits and next steps
 

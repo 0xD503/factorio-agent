@@ -1,0 +1,9 @@
+# Release archives (git archive, see tools/release.py) get the commit stamped in, and leave
+# out what only matters to the repository itself.
+fxa/_build.py export-subst
+.gitattributes export-ignore
+
+# Launchers must keep their line endings on every OS.
+fx text eol=lf
+*.py text eol=lf
+fx.cmd -text

@@ -5,8 +5,11 @@ Two installs are configured, and they may be the same one:
     client  the game a person plays with (only used to launch it: `fx join`)
 
 They come from, in order: command-line flags, FACTORIO_SERVER / FACTORIO_CLIENT / FACTORIO_PATH,
-config.json (`fx setup`), and finally a search of the usual places (Steam libraries, standalone
-installs). A path may name the binary, the install directory, or a macOS .app bundle.
+config.json (`fx setup`), and finally a search of the usual places for standalone installs.
+A path may name the binary, the install directory, or a macOS .app bundle.
+
+Store installs (Steam, GOG) are left alone: they are only searched, used or remembered when the
+user asks for it (`fx setup --steam`, `--gog`, or a path given explicitly).
 """
 
 import os
@@ -139,18 +142,40 @@ def _steam_libraries():
     return libraries
 
 
-def candidates():
-    """Places a Factorio install is commonly found, most likely first."""
+def _gog_dirs():
+    home = Path.home()
+    if sys.platform == "win32":
+        return [Path("C:/GOG Games/Factorio"), Path("C:/Program Files (x86)/GOG Galaxy/Games/Factorio")]
+    if sys.platform == "darwin":
+        return [Path("/Applications/Factorio.app")]
+    return [home / "GOG Games" / "Factorio", home / "GOG Games" / "factorio"]
+
+
+def store_of(path):
+    """'steam', 'gog' or '' for an install path."""
+    text = str(path).replace("\\", "/").lower()
+    if "steamapps/common" in text:
+        return "steam"
+    if "gog games" in text or "gog galaxy" in text:
+        return "gog"
+    return ""
+
+
+def candidates(steam=False, gog=False):
+    """Places a Factorio install is commonly found, most likely first. Store installs only on request."""
     home = Path.home()
     found = []
-    for library in _steam_libraries():
-        game = library / "steamapps" / "common" / "Factorio"
-        found.append(game / "factorio.app" if sys.platform == "darwin" else game)
+    if steam:
+        for library in _steam_libraries():
+            game = library / "steamapps" / "common" / "Factorio"
+            found.append(game / "factorio.app" if sys.platform == "darwin" else game)
+    if gog:
+        found += _gog_dirs()
     if sys.platform == "win32":
         for env in ("ProgramFiles", "ProgramFiles(x86)"):
             if os.environ.get(env):
                 found.append(Path(os.environ[env]) / "Factorio")
-        found += [Path("C:/GOG Games/Factorio"), home / "Factorio"]
+        found.append(home / "Factorio")
     elif sys.platform == "darwin":
         found += [Path("/Applications/factorio.app"), home / "Applications" / "factorio.app"]
     else:
@@ -165,10 +190,10 @@ def candidates():
     return out
 
 
-def search():
+def search(steam=False, gog=False):
     """Every install found in the usual places, as Install objects."""
     out = []
-    for path in candidates():
+    for path in candidates(steam=steam, gog=gog):
         try:
             out.append(probe(path))
         except InstallError:
@@ -192,8 +217,22 @@ def configured(role, override=None):
         found = [i for i in found if not i.headless] or found
     if not found:
         raise InstallError("Factorio was not found. Run `fx setup --game PATH` with the folder Factorio is installed in "
-                           "(the one containing bin/ and data/), or set FACTORIO_PATH.")
+                           "(the one containing bin/ and data/), or `fx setup --steam` / `--gog` to use a store install.")
     return found[0]
+
+
+def _selftest_key(install):
+    return str(install.binary)
+
+
+def selftest_passed(install):
+    return paths.config().get("selftest", {}).get(_selftest_key(install)) == install.version_str
+
+
+def record_selftest(install):
+    cfg = paths.config()
+    cfg.setdefault("selftest", {})[_selftest_key(install)] = install.version_str
+    paths.save_config(cfg)
 
 
 def version_notes(install):
@@ -201,14 +240,74 @@ def version_notes(install):
     notes = []
     if install.version < GAME_MIN:
         notes.append(f"Factorio {install.version_str} is too old: the in-game script needs {'.'.join(map(str, GAME_MIN))} or newer")
-    elif install.version > GAME_TESTED:
+    elif install.version > GAME_TESTED and not selftest_passed(install):
         notes.append(f"Factorio {install.version_str} is newer than the last tested version "
                      f"{'.'.join(map(str, GAME_TESTED))}; run `fx selftest` once to check the interface still works")
     return notes
 
 
+def required_dependencies(info):
+    """Names of the mods an info.json says must be present (optional and incompatible ones skipped)."""
+    out = []
+    for dep in (info or {}).get("dependencies", []):
+        dep = dep.strip()
+        if dep.startswith(("?", "!", "(?)")):
+            continue
+        match = re.match(r"(?:~\s*)?([A-Za-z0-9_-]+)", dep)
+        if match:
+            out.append(match.group(1))
+    return out
+
+
+def mod_info(name, game=None, mods_dir=None):
+    """A mod's info.json: from the game's data (built-in mods) or a zip/folder in mods_dir."""
+    import zipfile
+    if game is not None:
+        info = paths.read_json(game.data / name / "info.json")
+        if info:
+            return info
+    if mods_dir is not None and Path(mods_dir).is_dir():
+        for path in sorted(Path(mods_dir).glob(f"{name}_*.zip"), reverse=True):
+            try:
+                with zipfile.ZipFile(path) as z:
+                    inner = [n for n in z.namelist() if n.count("/") == 1 and n.endswith("/info.json")]
+                    if inner:
+                        import json
+                        return json.loads(z.read(inner[0]).decode("utf-8"))
+            except (OSError, ValueError, zipfile.BadZipFile):
+                continue
+        for folder in [Path(mods_dir) / name] + sorted(Path(mods_dir).glob(f"{name}_*"), reverse=True):
+            info = paths.read_json(folder / "info.json") if folder.is_dir() else None
+            if info:
+                return info
+    return None
+
+
+def with_dependencies(mods, game=None, mods_dir=None):
+    """`mods` plus every mod they require, base first."""
+    out = [m for m in dict.fromkeys(["base"] + list(mods))]
+    index = 0
+    while index < len(out):
+        for dep in required_dependencies(mod_info(out[index], game, mods_dir)):
+            if dep not in out:
+                out.append(dep)
+        index += 1
+    return out
+
+
+def enabled_mods(install):
+    """Mods enabled in the user's own game (its mod-list.json), base first; None if unknown."""
+    if install is None:
+        return None
+    data = paths.read_json(user_mods_dir(install) / "mod-list.json")
+    if not data:
+        return None
+    names = [m.get("name") for m in data.get("mods", []) if m.get("enabled") and m.get("name")]
+    return ["base"] + sorted(n for n in names if n != "base")
+
+
 def user_mods_dir(install=None):
-    """The mods folder the user's own game uses, to copy mods from."""
+    """The mods folder the user's own game uses (read only: mods are copied from it)."""
     if install is not None:
         portable = install.root / "mods"
         if (portable / "mod-list.json").exists():

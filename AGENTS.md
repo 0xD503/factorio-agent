@@ -21,6 +21,9 @@ command. This file tells you how. Read it fully before your first command, then 
 
 1. `./fx doctor`. If the game is not found, ask the user where Factorio is installed and run
    `./fx setup --game PATH` (on Linux the free headless server can be given with `--server-game`).
+   Use `./fx setup --steam` or `--gog` only if the user says to use their store copy: the
+   harness leaves those alone by default. If doctor says the selftest has not passed, run
+   `./fx selftest` and report a failure instead of playing.
 2. `./fx session list`. Resume the session the user means (`./fx session use NAME`), or create one:
    - solo: `./fx session new NAME --agent-name <your name>`
    - co-op: `./fx session new NAME --mode coop --agent-name <your name> --admin <their player name>`
@@ -57,6 +60,9 @@ command. This file tells you how. Read it fully before your first command, then 
 - In co-op an interrupted run only hands control back to you: your queued orders keep running
   in real time. When a player says stop, run `./fx cancel` first, then answer.
 - Never change game speed, kick, ban or pause in co-op; those are the humans' decisions.
+- Mods: a new session uses the mods enabled in the user's game. When `fx` reports that the
+  game's mods and the session's differ (new mod downloaded, one disabled), tell the user and ask
+  before `./fx session mods --sync`: it changes the map, and removing a mod deletes its buildings.
 
 ## Writing things down (this is how you improve)
 
@@ -122,6 +128,17 @@ Rules:
 - Keep the user guide in plain language: say what to type and what will happen. Exact
   examples beat descriptions. Give Windows variants where a command differs.
 - Bump `fxa/__init__.py` `GAME_TESTED` only after `./fx selftest` passed on that version.
+
+Development workflow:
+
+- Offline tests: `python3 -m unittest discover -s tests` (seconds, no game). Live tests:
+  `./fx selftest` (a throwaway session in a temporary data directory, about 15 seconds).
+- Never hard-code anything about the machine you run on: paths, user names, installs. Machine
+  facts belong in the user's data directory (`config.json`, sessions), found at run time.
+- Releases: bump `__version__` in `fxa/__init__.py`, commit, then
+  `python3 tools/release.py VERSION --notes FILE` (annotated tag + zip/tar.gz from `git archive`
+  + checksums in `dist/`); `--publish` pushes the tag and creates a GitHub release with `gh`.
+  Publishing is the user's call: ask first.
 
 ## Where things are
 

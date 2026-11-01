@@ -34,6 +34,8 @@ def build_parser():
     p.add_argument("--game", help="Factorio install used for both server and client")
     p.add_argument("--server-game", help="install that runs servers (e.g. the Linux headless build)")
     p.add_argument("--client-game", help="install you play with")
+    p.add_argument("--steam", action="store_true", help="also look for a Steam install (left alone otherwise)")
+    p.add_argument("--gog", action="store_true", help="also look for a GOG install (left alone otherwise)")
     p.add_argument("--agent-name", help="default name of the agent in new sessions")
     sub.add_parser("doctor", help="check Python, the game, ports and the current session")
     p = sub.add_parser("selftest", help="run the live tests against the configured game (a few minutes)")
@@ -48,7 +50,7 @@ def build_parser():
     q.add_argument("--mode", choices=["solo", "coop"], default="solo",
                    help="solo: the agent plays alone and runs the clock; coop: real time with human players")
     q.add_argument("--seed", type=int)
-    q.add_argument("--mods", default="", help="comma-separated mods besides base, e.g. space-age")
+    q.add_argument("--mods", help="use exactly these mods (comma-separated) instead of the ones enabled in your game")
     q.add_argument("--agent-name", help="name shown over the agent's character and in chat")
     q.add_argument("--from-save", help="use this existing save instead of generating a map")
     q.add_argument("--map-gen-settings", help="map generator settings JSON (default: the game's defaults)")
@@ -56,6 +58,9 @@ def build_parser():
     q.add_argument("--no-start", action="store_true", help="only create it")
     _server_options(q)
     ss.add_parser("list", help="all sessions")
+    q = ss.add_parser("mods", help="compare the session's mods with your game's; --sync to adopt your game's")
+    q.add_argument("--sync", action="store_true", help="make the session use the mods enabled in your game")
+    q.add_argument("--set", help="make the session use exactly these mods (comma-separated)")
     q = ss.add_parser("use", help="make a session the current one")
     q.add_argument("name")
     q = ss.add_parser("info", help="settings and paths of a session")
@@ -232,24 +237,28 @@ def cmd_setup(args):
     if args.client_game:
         game["client"] = str(install.probe(args.client_game).binary)
     if not (args.game or args.server_game or args.client_game):
-        found = install.search()
+        found = install.search(steam=args.steam, gog=args.gog)
         if not found:
-            print("No Factorio install found in the usual places. Run: fx setup --game /path/to/Factorio")
+            print("No Factorio install found in the usual places for standalone installs.\n"
+                  "  - give its folder (the one with bin/ and data/): fx setup --game PATH\n"
+                  "  - or let the harness use your Steam or GOG copy: fx setup --steam  (or --gog)\n"
+                  "  - on Linux the free headless server can run the games: fx setup --server-game PATH")
             return 1
         print("Found:")
         for f in found:
             print("  " + f.describe())
         full = [f for f in found if not f.headless]
-        game.setdefault("server", str(found[0].binary))
-        game.setdefault("client", str((full or found)[0].binary))
+        game["server"] = str(found[0].binary)
+        game["client"] = str((full or found)[0].binary)
     if args.agent_name:
         cfg["agent_name"] = args.agent_name
     paths.save_config(cfg)
     print(f"server: {game.get('server')}\nclient: {game.get('client')}\nsaved in {paths.home() / 'config.json'}")
+    print("Next: ./fx selftest  (checks the interface works with this game version)")
     return 0
 
-
 def cmd_doctor(args):
+    from fxa import __version__, build_info
     problems = 0
 
     def line(ok, text):
@@ -257,6 +266,7 @@ def cmd_doctor(args):
         problems += 0 if ok else 1
         print(("ok    " if ok else "FAIL  ") + text)
 
+    print(f"factorio-agent {__version__} {build_info()}")
     line(sys.version_info >= (3, 10), f"Python {platform.python_version()} on {platform.system()} {platform.release()} ({platform.machine()})")
     home = paths.home()
     try:
@@ -270,11 +280,18 @@ def cmd_doctor(args):
     for role in ("server", "client"):
         try:
             found = install.configured(role)
-            line(True, f"{role}: {found.describe()}")
+            store = install.store_of(found.binary)
+            line(True, f"{role}: {found.describe()}" + (f" ({store} install)" if store else ""))
             for note in install.version_notes(found):
                 print("      " + note)
-            if role == "server" and not found.headless:
-                print("      (the full game runs servers too; on Linux the free headless build is lighter)")
+            if role == "server":
+                if not found.headless:
+                    print("      (the full game runs servers too; on Linux the free headless build is lighter)")
+                line(install.selftest_passed(found), "selftest passed for this install and version" if install.selftest_passed(found)
+                     else "selftest has not passed with this install and version yet: run ./fx selftest")
+            if role == "client":
+                mods = install.enabled_mods(found)
+                print(f"      mods enabled in your game: {', '.join(mods) if mods else 'unknown (no mod-list.json)'}")
         except install.InstallError as err:
             line(False, f"{role}: {err}")
     try:
@@ -293,32 +310,70 @@ def cmd_doctor(args):
                 print(f"      the game was updated since this session last ran ({s.meta['game_version']} -> {game.version_str})")
         except install.InstallError:
             pass
+        _mods_notice(s, indent="      ")
     except session.SessionError as err:
         print(f"note  {err}")
     print("all good" if not problems else f"{problems} problem(s)")
     return 1 if problems else 0
 
-
 def cmd_selftest(args):
+    game = install.configured("server")
     env = dict(os.environ)
     env["FXA_LIVE"] = "1"
     cmd = [sys.executable, "-m", "unittest", "-v", "tests.test_live"]
     if args.k:
         cmd += ["-k", args.k]
-    return subprocess.call(cmd, cwd=paths.REPO, env=env)
-
-
-# ---------------------------------------------------------------------------
-# sessions and servers
+    print(f"testing with {game.describe()} (about 15 seconds)...", flush=True)
+    code = subprocess.call(cmd, cwd=paths.REPO, env=env)
+    if code == 0 and not args.k:
+        install.record_selftest(game)
+        print(f"selftest passed: Factorio {game.version_str} works with this harness")
+    elif code:
+        print("selftest FAILED: please report the output above (see docs/USER_GUIDE.md, Troubleshooting)")
+    return code
 
 def _configure(game_conn, s):
     return game_conn.call("configure", mode=s.mode, name=s.agent_name)
+
+
+def _with_deps(mods):
+    """Add the mods these require (Space Age needs quality and elevated-rails, for example)."""
+    try:
+        game = install.configured("server")
+    except install.InstallError:
+        game = None
+    try:
+        source = install.user_mods_dir(install.configured("client"))
+    except install.InstallError:
+        source = None
+    return install.with_dependencies(mods, game, source)
+
+
+def _mods_notice(s, indent="note: "):
+    """Tell the user when their game's mods and the session's differ (never changes anything)."""
+    try:
+        mine = install.enabled_mods(install.configured("client"))
+    except install.InstallError:
+        return
+    if mine is None:
+        return
+    extra = [m for m in mine if m not in s.mods]
+    missing = [m for m in s.mods if m not in mine]
+    if extra:
+        print(f"{indent}your game has mods this session does not use: {', '.join(extra)}; "
+              "`fx session mods --sync` adds them (the save is migrated when the server next starts)")
+    if missing:
+        print(f"{indent}this session uses mods your game has disabled: {', '.join(missing)}; enable them to join, "
+              "or `fx session mods --sync` to drop them (their buildings disappear from the map)")
 
 
 def _start_server(s, save=None):
     game = install.configured("server")
     for note in install.version_notes(game):
         print("note: " + note)
+    if not install.selftest_passed(game):
+        print("note: ./fx selftest has not passed with this game version yet")
+    _mods_notice(s)
     if s.meta.get("game_version") and s.meta["game_version"] != game.version_str:
         print(f"note: the game was updated since this session last ran ({s.meta['game_version']} -> {game.version_str}); "
               "knowledge marked as verified on the old version may be out of date")
@@ -342,12 +397,23 @@ def cmd_session(args):
     action = args.action
     if action == "new":
         cfg = paths.config()
-        mods = [m.strip() for m in args.mods.split(",") if m.strip()]
+        if args.mods is not None:
+            mods, source = [m.strip() for m in args.mods.split(",") if m.strip()], "--mods"
+        else:
+            try:
+                mods = install.enabled_mods(install.configured("client"))
+            except install.InstallError:
+                mods = None
+            source = "your game's mod list"
+            if mods is None:
+                mods, source = ["base"], "default (no game mod list found)"
+        mods = _with_deps(mods)
         s = session.create(args.name, directory=args.dir, mode=args.mode, mods=mods,
                            agent_name=args.agent_name or cfg.get("agent_name") or "Agent",
                            seed=args.seed, server=_server_fields(args))
         session.use(s)
         print(f"session {s.name} created at {s.dir} (now the current session)")
+        print(f"mods: {', '.join(s.mods)} (from {source})")
         game = install.configured("server")
         srv = server.Server(s)
         if args.from_save:
@@ -376,6 +442,29 @@ def cmd_session(args):
                 print(f"{'*' if s.dir == cur else ' '} {name:20s} {s.mode:5s} {state:8s} {path}")
             except session.SessionError:
                 print(f"  {name:20s} (missing) {path}")
+        return 0
+    if action == "mods":
+        s = session.current(args.session)
+        mine = None
+        try:
+            mine = install.enabled_mods(install.configured("client"))
+        except install.InstallError:
+            pass
+        if args.set or args.sync:
+            if args.set:
+                new = ["base"] + [m.strip() for m in args.set.split(",") if m.strip() and m.strip() != "base"]
+            elif mine is None:
+                print("cannot read your game's mod list (no client install configured, or no mod-list.json)", file=sys.stderr)
+                return 1
+            else:
+                new = mine
+            new = _with_deps(new)
+            s.update(mods=new)
+            print(f"session mods: {', '.join(new)}; restart the server to apply (fx server restart)")
+            return 0
+        print(f"session:   {', '.join(s.mods)}")
+        print(f"your game: {', '.join(mine) if mine else 'unknown'}")
+        _mods_notice(s, indent="")
         return 0
     if action == "use":
         s = session.find(args.name)
@@ -576,8 +665,12 @@ def cmd_kb(args):
 
 
 def _review_hint(path):
-    return ("\nThis file is inside the repository: review it (git diff) and commit it, or open a pull request."
-            if paths.REPO in Path(path).resolve().parents else "")
+    if paths.REPO not in Path(path).resolve().parents:
+        return ""
+    if (paths.REPO / ".git").exists():
+        return "\nThis file is inside the repository: review it (git diff) and commit it, or open a pull request."
+    return ("\nThis copy of the harness is a release archive, not a git checkout: the file will be replaced at the "
+            "next upgrade. Prefer --to user, or send the file to the maintainers.")
 
 
 def _current_quiet():
@@ -730,6 +823,7 @@ def main(argv=None):
         with Game.for_session(args.session) as game:
             return game_command(args, game)
     except errors as err:
+        sys.stdout.flush()
         print(f"fx: {err}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:

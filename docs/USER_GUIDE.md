@@ -9,37 +9,46 @@ Version 0.1, a developer build: expect rough edges and breaking changes.
 
 | | |
 |---|---|
-| **Factorio 2.0** | The full game (Steam, GOG or factorio.com) to play or watch. Space Age is optional. On Linux you can also run the server with the free [headless server](https://www.factorio.com/download) build. |
+| **Factorio 2.0 or newer** | The full game (from factorio.com, Steam or GOG) to play or watch. Space Age is optional. On Linux the free [headless server](https://www.factorio.com/download) build can run the games instead of the full game. |
 | **Python 3.10 or newer** | Standard library only, nothing to `pip install`. Linux: usually installed already (`python3 --version`). Windows: `winget install Python.Python.3.12` or the installer from python.org (tick "Add to PATH"). macOS: python.org or Homebrew. |
 | **An AI agent that can run commands** | [Claude Code](https://claude.com/claude-code) reads `CLAUDE.md` automatically. Other agents (Codex CLI, Gemini CLI, Cursor...) read `AGENTS.md`. |
-| **Git** | To get the repository. |
-| **OS** | Linux x86-64: tested (Pop!_OS 24.04). Windows 10/11: written for, not tested yet. macOS: untested. |
+| **OS** | Linux x86-64: tested. Windows 10/11: written for, not tested yet. macOS: untested. |
 | **Network (co-op only)** | Friends on your LAN: nothing. Over the internet: forward UDP port 34197 to the host, or use a VPN such as Tailscale or ZeroTier. |
 
-You do **not** need a second Factorio account for the agent: its character lives inside the
-game server, so it is not a game client. Only the humans who join need their own copy.
+You do not need git, and you do not need a second Factorio account for the agent: its
+character lives inside the game server (see [Multiplayer: how the agent takes part](#multiplayer-how-the-agent-takes-part)).
 
 ## Install
 
-```
-git clone <repository URL> factorio-agent
-cd factorio-agent
-./fx doctor          # Windows cmd: fx.cmd doctor   PowerShell: .\fx.cmd doctor
-./fx setup           # finds Factorio in the usual places and remembers it
-```
+1. **Download** `factorio-agent-VERSION.zip` (or `.tar.gz`) from the releases page and extract it
+   anywhere. The archive comes with a `.SHA256SUMS` file to check the download against.
+   (Developers can clone the repository instead.)
+2. **Check your system** from inside the extracted folder:
+   ```
+   ./fx doctor          # Windows cmd: fx.cmd doctor   PowerShell: .\fx.cmd doctor
+   ```
+   The rest of this guide writes `./fx`; on Windows use `fx.cmd` (cmd) or `.\fx.cmd` (PowerShell).
+   On Linux, if `./fx` says "permission denied" after unzipping, run `chmod +x fx` once.
+3. **Tell it where Factorio is.** `./fx setup` looks in the usual places for a standalone
+   install (from factorio.com). It leaves Steam and GOG copies alone unless you ask:
+   ```
+   ./fx setup                                   # standalone installs in the usual places
+   ./fx setup --game ~/factorio                 # a folder that contains bin/ and data/
+   ./fx setup --steam                           # use your Steam copy (or --gog for GOG)
+   ./fx setup --game ~/factorio --server-game ~/factorio-headless   # Linux: headless build runs the servers
+   ```
+   The harness only ever runs that game. It never writes into the install, and it never touches
+   your settings, saves or mods.
+4. **Run the self-test** (about 15 seconds). It plays a throwaway map and checks that the
+   harness works with your version of the game. Run it again after every game update:
+   ```
+   ./fx selftest
+   ```
+   `./fx doctor` should now say "all good".
 
-The rest of this guide writes `./fx`; on Windows use `fx.cmd` (cmd) or `.\fx.cmd` (PowerShell).
-
-If `setup` does not find the game, give the folder that contains `bin/` and `data/`:
-
-```
-./fx setup --game "C:\Program Files (x86)\Steam\steamapps\common\Factorio"
-./fx setup --game ~/.steam/steam/steamapps/common/Factorio
-./fx setup --game ~/factorio --server-game ~/factorio-headless   # separate server build (Linux)
-```
-
-`./fx doctor` should now say "all good". Optionally run `./fx selftest` (well under a minute):
-it plays a throwaway map and checks that everything works with your version of the game.
+**Upgrading:** extract the new release next to the old one and run `./fx doctor` and
+`./fx selftest` from it. Your sessions, settings and own knowledge live in the data directory
+(see [Sessions](#sessions)), not in the harness folder, so nothing is lost. Then delete the old folder.
 
 ## Playing with the agent
 
@@ -100,11 +109,18 @@ The agent creates a co-op session like this (you can do it yourself too):
 The agent's character has its name floating above it. It plays by the same rules as you: it
 has to walk, mine, craft and carry everything.
 
-### Hosting somewhere else
+### Multiplayer: how the agent takes part
 
-The agent needs RCON on the server, and Factorio only offers RCON on dedicated servers
-(`--start-server`, which is what `fx server start` runs). A game hosted from the game window
-("Host saved game") ignores the RCON options, so the agent cannot join that way.
+The agent's character is created by a script inside the game server and controlled through
+the server's remote console (RCON). It plays by the same rules as you, but it is not a
+connected player: it does not appear in the player list and needs no Factorio account.
+
+- It can play on servers the harness runs (`./fx server start`), or on a dedicated server
+  someone else runs that has the agent's script and gives it RCON (below).
+- It cannot join a game hosted from the game window ("Host saved game"): Factorio offers RCON
+  only on dedicated servers. It cannot join arbitrary public servers either.
+- Joining as a real player, with its own account and game window, is possible with Factorio
+  2.0 and planned, not built yet.
 
 To play on a dedicated server someone else runs, they host a save prepared with
 `./fx prepare-save their.zip prepared.zip`, start the server with
@@ -156,13 +172,21 @@ any other change before committing.
 
 ## Game updates and mods
 
-- When Steam updates Factorio, `./fx doctor` shows the new version, and starting a session notes
-  the change. Run `./fx selftest` once; if it passes, carry on. Knowledge items say which version
-  they were checked on.
-- New sessions use the base game. Add the expansion with `--mods space-age` (it pulls in
-  `quality` and `elevated-rails`). Other mods: install and enable them in your game first; the
-  harness copies them from your mods folder (`--mods name1,name2`). Everyone joining needs the
-  same mods. Factorio offers to download them when you connect.
+- When Factorio is updated, run `./fx selftest` once. `./fx doctor` and every server start remind
+  you until it has passed with the new version. Knowledge items say which version they were
+  checked on.
+- **Mods are picked up from your game.** A new session uses the mods enabled in your own game
+  (its mod list), so you can join without any mod download. To choose different ones:
+  `./fx session new NAME --mods space-age` (or `--mods base` for a plain game).
+- **Downloaded a new mod?** Existing games do not change by themselves, because adding or removing
+  a mod changes the map. When your game's mods and a session's differ, `./fx doctor`, `./fx
+  server start` and the agent tell you. `./fx session mods` shows both lists; `./fx session
+  mods --sync` makes the session use your game's mods from the next server start. Removing a
+  mod deletes its buildings from the map.
+- The expansion's mods (`space-age`, `quality`, `elevated-rails`) need a server install that
+  includes them: the full game with Space Age, or the Linux headless build.
+- Other mods are copied from your game's mods folder into the session, so everyone joining needs
+  the same mods (Factorio offers to download them when you connect).
 - The harness's script replaces the save's own scenario script with freeplay plus the agent. Use it
   with freeplay games (the normal "New game"). Other scenarios are not supported yet.
 
@@ -185,14 +209,14 @@ any other change before committing.
 
 | Problem | Try |
 |---|---|
-| `Factorio was not found` | `./fx setup --game PATH` with the folder holding `bin/` and `data/`. |
+| `Factorio was not found` | `./fx setup --game PATH` with the folder holding `bin/` and `data/`, or `./fx setup --steam` / `--gog`. |
 | `cannot reach the game server` | `./fx server status`, then `./fx server start`; `./fx server log` shows why it stopped. |
 | Port 34197 in use | Another server is running. The session picks the next free port; `./fx server status` shows it. |
 | Friends cannot connect | Check the firewall and port forward (UDP, not TCP), or use a VPN. Your own client connects with `./fx join`. |
-| Game updated, things fail | `./fx selftest`; report failures with the output. |
-| Mod not found | Install and enable it in your game first, then `./fx server restart`. |
+| Game updated, things fail | `./fx selftest`; report failures with the output and the first line of `./fx doctor`. |
+| Mod not found | Install and enable it in your game first, then `./fx session mods --sync` and `./fx server restart`. |
 | Agent stuck in a loop | Tell it to stop; `./fx cancel` drops its queued orders. |
 
 ## Removing it
 
-Delete the repository folder and the data directory. Nothing else is installed.
+Delete the harness folder and the data directory. Nothing else is installed.

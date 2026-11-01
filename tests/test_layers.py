@@ -167,6 +167,39 @@ class InstallTest(unittest.TestCase):
             with mock.patch.object(install, "_steam_roots", return_value=[steam]):
                 self.assertEqual(install._steam_libraries(), [steam, Path("/games/SteamLibrary")])
 
+    def test_store_installs_only_on_request(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp) / "Steam"
+            with mock.patch.object(install, "_steam_roots", return_value=[steam]):
+                (steam / "steamapps").mkdir(parents=True)
+                default = [str(c) for c in install.candidates()]
+                asked = [str(c) for c in install.candidates(steam=True, gog=True)]
+            self.assertFalse(any("steamapps" in c or "GOG" in c for c in default))
+            self.assertTrue(any("steamapps" in c for c in asked))
+            self.assertTrue(any("GOG" in c for c in asked))
+        self.assertEqual(install.store_of("/x/steamapps/common/Factorio/bin/x64/factorio"), "steam")
+        self.assertEqual(install.store_of("C:/GOG Games/Factorio"), "gog")
+        self.assertEqual(install.store_of("/home/me/factorio"), "")
+
+    def test_mod_dependencies(self):
+        import zipfile
+        with tempfile.TemporaryDirectory() as tmp:
+            data = Path(tmp) / "data"
+            for name, deps in (("base", []), ("quality", ["base >= 2.0.0"]), ("elevated-rails", ["base"]),
+                               ("space-age", ["base >= 2.0.0", "elevated-rails >= 2.0.0", "quality >= 2.0.0"])):
+                (data / name).mkdir(parents=True)
+                (data / name / "info.json").write_text(json.dumps({"name": name, "dependencies": deps}))
+            mods = Path(tmp) / "mods"
+            mods.mkdir()
+            with zipfile.ZipFile(mods / "big-mod_1.2.0.zip", "w") as z:
+                z.writestr("big-mod_1.2.0/info.json", json.dumps(
+                    {"name": "big-mod", "dependencies": ["base", "lib-mod >= 1", "? optional-mod", "! enemy-mod", "(?) hidden"]}))
+            with zipfile.ZipFile(mods / "lib-mod_1.0.0.zip", "w") as z:
+                z.writestr("lib-mod_1.0.0/info.json", json.dumps({"name": "lib-mod", "dependencies": ["~ base"]}))
+            game = install.Install(binary=data / "x", data=data)
+            self.assertEqual(install.with_dependencies(["space-age"], game), ["base", "space-age", "elevated-rails", "quality"])
+            self.assertEqual(install.with_dependencies(["big-mod"], game, mods), ["base", "big-mod", "lib-mod"])
+
     def test_version_notes(self):
         old = install.Install(Path("x"), Path("y"), version=(1, 1, 110))
         new = install.Install(Path("x"), Path("y"), version=(2, 1, 0))

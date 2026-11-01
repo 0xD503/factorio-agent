@@ -26,6 +26,10 @@ class ServerError(Exception):
     pass
 
 
+# Mods that ship with the game's data when the expansion is present.
+EXPANSION = ("space-age", "quality", "elevated-rails")
+
+
 SOLO_SETTINGS = {
     "visibility": {"public": False, "lan": False},
     "require_user_verification": False,
@@ -196,12 +200,21 @@ class Server:
     def _prepare_mods(self, game):
         mods_dir = self.dir / "mods"
         mods_dir.mkdir(exist_ok=True)
-        wanted = self.session.mods
+        try:
+            client = _install.configured("client")
+        except _install.InstallError:
+            client = None
+        source = _install.user_mods_dir(client)
+        wanted = _install.with_dependencies(self.session.mods, game, source)
         builtin = game.builtin_mods()
         entries = [{"name": name, "enabled": name in wanted} for name in builtin]
+        lacking = [name for name in wanted if name in EXPANSION and name not in builtin]
+        if lacking:
+            raise ServerError(f"the server install ({game.binary}) has no {', '.join(lacking)} data. Use an install with "
+                              "the expansion (the Linux headless build includes it), or drop those mods: "
+                              "fx session mods --set ...")
         external = [name for name in wanted if name not in builtin]
         if external:
-            source = _install.user_mods_dir(game)
             for name in external:
                 matches = sorted(source.glob(f"{name}_*.zip")) + sorted(p for p in source.glob(f"{name}_*") if p.is_dir())
                 if not matches and (source / name).is_dir():

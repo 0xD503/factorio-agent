@@ -95,14 +95,10 @@ def mod_order(mods, game=None):
     """Active mods with each one after its dependencies, base first."""
     deps = {}
     data = game.data if game is not None else None
+    from fxa import install
     for mod in mods:
         info = paths.read_json(data / mod / "info.json") if data else None
-        found = []
-        for dep in (info or {}).get("dependencies", []):
-            match = re.match(r"\s*(?:~\s*)?([A-Za-z0-9_-]+)", dep)
-            if match and not dep.strip().startswith(("!", "?", "(?)")):
-                found.append(match.group(1))
-        deps[mod] = [d for d in found if d in mods]
+        deps[mod] = [d for d in install.required_dependencies(info) if d in mods]
     order, seen = [], set()
 
     def visit(mod, trail=()):
