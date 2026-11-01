@@ -79,6 +79,14 @@ function common.event(kind, data)
   if #st.events > 200 then table.remove(st.events, 1) end
 end
 
+-- obj[key], or nil when the object has no such property. Factorio 2.1 raises an error for
+-- properties an entity does not have (2.0 returned nil for some, e.g. fluidbox and burner).
+function common.get(obj, key)
+  local ok, value = pcall(function() return obj[key] end)
+  if ok then return value end
+  return nil
+end
+
 function common.round(v)
   return math.floor(v * 100 + 0.5) / 100
 end

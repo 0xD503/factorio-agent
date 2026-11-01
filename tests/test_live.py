@@ -190,6 +190,30 @@ class LiveTest(unittest.TestCase):
         self.assertEqual(report.dropped, 1)
         self.assertLess(self.distance_to(here["x"], here["y"]), 1)
 
+    def test_19_machine_orders(self):
+        here = self.character()
+        x, y = round(here["x"]) + 6.5, round(here["y"]) + 0.5
+        self.give(fast_inserter=1, assembling_machine_2=1, chemical_plant=1, iron_plate=20)
+        # Into the main inventory, as after looting a corpse (given directly, a gun goes to its slot).
+        self.lua("storage.agent.character.get_main_inventory().insert{name='submachine-gun', count=1}")
+        self.do(place("fast-inserter", x, y, "w"))
+        self.do({"type": "rotate", "x": x, "y": y, "dir": "s"})
+        self.assertEqual(self.game.call("entities", x=x, y=y, r=0.5)["entities"][0]["dir"], "s")
+        self.do({"type": "filter", "x": x, "y": y, "items": ["iron-plate"]})
+        self.assertEqual(self.game.call("entities", x=x, y=y, r=0.5)["entities"][0].get("filter"), "iron-plate")
+        ax, ay = x + 4, y + 0.0
+        self.do(place("assembling-machine-2", ax, ay), {"type": "recipe", "x": ax, "y": ay, "recipe": "iron-gear-wheel"})
+        self.assertEqual(self.game.call("entities", x=ax, y=ay, r=1)["entities"][0]["recipe"], "iron-gear-wheel")
+        cx, cy = x + 4, y + 5
+        self.do(place("chemical-plant", cx, cy, recipe="lubricant"), {"type": "mirror", "x": cx, "y": cy})
+        self.do({"type": "equip", "item": "submachine-gun"})
+        self.assertIn("submachine-gun", self.game.state()["character"]["guns"])
+        plates = self.count("iron-plate")
+        self.do(craft("iron-gear-wheel", 5))
+        self.do({"type": "uncraft", "recipe": "iron-gear-wheel"})
+        self.assertEqual(self.count("iron-plate"), plates)
+        self.do({"type": "pickup", "ticks": 10})
+
     # -- what the agent may see ----------------------------------------------
 
     def test_20_unseen_chunks_are_hidden(self):

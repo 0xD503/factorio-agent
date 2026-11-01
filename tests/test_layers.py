@@ -202,7 +202,8 @@ class InstallTest(unittest.TestCase):
 
     def test_version_notes(self):
         old = install.Install(Path("x"), Path("y"), version=(1, 1, 110))
-        new = install.Install(Path("x"), Path("y"), version=(2, 1, 0))
+        from fxa import GAME_TESTED
+        new = install.Install(Path("x"), Path("y"), version=(GAME_TESTED[0], GAME_TESTED[1] + 1, 0))
         self.assertIn("too old", install.version_notes(old)[0])
         self.assertIn("selftest", install.version_notes(new)[0])
 

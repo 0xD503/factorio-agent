@@ -40,6 +40,13 @@ function social.on_chat(event)
   end
 end
 
+-- A line printed by script on someone's behalf (the client link's `say`), so it is logged too.
+function social.record(from, text)
+  local st = storage.agent
+  if not st or not st.chat then return end
+  add_line(st, {from = from, text = text})
+end
+
 -- Joins, departures and deaths go into the same log, from "*".
 function social.notice(text)
   local st = storage.agent

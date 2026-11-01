@@ -84,6 +84,16 @@ def build_parser():
     p.add_argument("source")
     p.add_argument("dest")
     sub.add_parser("join", help="open your game connected to this session's server")
+    p = sub.add_parser("client", help="(experimental) the agent plays through a game client of its own, as a real player")
+    cs = p.add_subparsers(dest="action", required=True, metavar="ACTION")
+    q = cs.add_parser("launch", help="open the game logged in as the agent's account, connected to a server")
+    q.add_argument("address", help="HOST:PORT of a server whose save has the agent script")
+    q.add_argument("--udp-port", type=int, default=34300, help="local port the client listens on for the agent")
+    q.add_argument("--password", help="game password of the server")
+    q = cs.add_parser("call", help="send one request to the client: hello, state, walk, stop, say")
+    q.add_argument("op")
+    q.add_argument("args", nargs="?", default="{}")
+    q.add_argument("--udp-port", type=int, help="default: the port of the last `fx client launch`")
 
     # -- multiplayer
     p = sub.add_parser("mode", help="switch between solo and coop (also restart the server for its network settings)")
@@ -320,10 +330,10 @@ def cmd_selftest(args):
     game = install.configured("server")
     env = dict(os.environ)
     env["FXA_LIVE"] = "1"
-    cmd = [sys.executable, "-m", "unittest", "-v", "tests.test_live"]
+    cmd = [sys.executable, "-m", "unittest", "-v", "tests.test_live", "tests.test_cli_live"]
     if args.k:
         cmd += ["-k", args.k]
-    print(f"testing with {game.describe()} (about 15 seconds)...", flush=True)
+    print(f"testing with {game.describe()} (under a minute)...", flush=True)
     code = subprocess.call(cmd, cwd=paths.REPO, env=env)
     if code == 0 and not args.k:
         install.record_selftest(game)
@@ -584,6 +594,34 @@ def _launch_client(extra):
     return subprocess.Popen([str(client.binary)] + extra, **kwargs)
 
 
+def cmd_client(args):
+    from fxa import link
+    state_file = paths.home() / "client-link.json"
+    if args.action == "launch":
+        extra = ["--mp-connect", args.address, "--enable-lua-udp", str(args.udp_port)]
+        if args.password:
+            extra += ["--password", args.password]
+        proc = _launch_client(extra)
+        paths.write_json(state_file, {"udp_port": args.udp_port, "pid": proc.pid, "address": args.address})
+        print(f"opened the game (pid {proc.pid}) connecting to {args.address}; it listens for the agent on UDP "
+              f"{args.udp_port}. Check with: fx client call hello")
+        return 0
+    port = args.udp_port or (paths.read_json(state_file, {}) or {}).get("udp_port")
+    if not port:
+        print("no client launched: fx client launch HOST:PORT", file=sys.stderr)
+        return 1
+    client = link.ClientLink(port)
+    try:
+        reply = client.call(args.op, **json.loads(args.args))
+    except link.LinkError as err:
+        print(f"fx: {err}", file=sys.stderr)
+        return 1
+    finally:
+        client.close()
+    print(json.dumps(reply) if args.json else fmt.fields({k: v for k, v in reply.items() if k not in ("ok", "id")}))
+    return 0
+
+
 def cmd_join(args):
     s = session.current(args.session)
     info = server.Server(s).info()
@@ -805,7 +843,7 @@ def cmd_apidoc(args):
 
 LOCAL = {"apidoc": cmd_apidoc, "setup": cmd_setup, "doctor": cmd_doctor, "selftest": cmd_selftest, "session": cmd_session,
          "server": cmd_server, "password": cmd_password, "attach": cmd_attach, "prepare-save": cmd_prepare_save,
-         "join": cmd_join, "kb": cmd_kb, "skill": cmd_skill}
+         "join": cmd_join, "client": cmd_client, "kb": cmd_kb, "skill": cmd_skill}
 
 
 def main(argv=None):

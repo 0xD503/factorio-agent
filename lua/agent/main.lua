@@ -14,6 +14,7 @@ local common = require("agent.common")
 local orders = require("agent.orders")
 local observe = require("agent.observe")
 local social = require("agent.social")
+local link = require("agent.link")
 
 local RESPAWN_TICKS = 600
 local ENEMY_ALERT_RANGE = 25
@@ -275,6 +276,9 @@ local function tick_unsafe(st)
 end
 
 local function on_tick()
+  -- The client link works on any server whose save has this script, started or not.
+  local ok_link, link_error = pcall(link.tick)
+  if not ok_link then log("agent link: " .. tostring(link_error)) end
   local st = storage.agent
   if not (st and st.started) then return end
   local ok, message = pcall(tick_unsafe, st)
@@ -581,6 +585,8 @@ events[defines.events.on_sector_scanned] = function(event)
 end
 
 events[defines.events.on_console_chat] = social.on_chat
+
+events[defines.events.on_udp_packet_received] = link.on_packet
 
 events[defines.events.on_player_left_game] = function(event)
   social.notice(game.get_player(event.player_index).name .. " left")

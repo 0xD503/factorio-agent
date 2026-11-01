@@ -4,7 +4,7 @@ __version__ = "0.1.0.dev0"
 
 # Lowest game version the in-game script supports, and the newest one it was tested on.
 GAME_MIN = (2, 0, 0)
-GAME_TESTED = (2, 0, 77)
+GAME_TESTED = (2, 1, 24)
 
 
 def build_info():

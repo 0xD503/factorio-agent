@@ -155,28 +155,38 @@ also cost the agent's ability to read and improve the harness without a toolchai
 stay in a Python subset because models write Python best, and because the subset can be
 interpreted safely. Revisit if profiling ever shows the harness in the critical path.
 
-## Client mode (planned)
+## Client mode (prototype)
 
 The aim is to let the agent join as a real player, with its own account and game window, so it
-shows in the player list and needs no RCON from the host. Factorio 2.0 makes this possible:
+shows in the player list and needs no RCON from the host. Factorio 2.0 makes this possible, and a
+prototype (`lua/agent/link.lua`, `fxa/link.py`, `fx client`) works:
 
-- The agent's game client starts with `--enable-lua-udp PORT`. The harness sends orders to that
-  port. The script (in the save, on every peer) calls `helpers.recv_udp(player_index)` each tick.
-  The game turns received packets into `on_udp_packet_received` events, dispatched the same way
-  on every peer. Replies go back with `helpers.send_udp(port, data, player_index)`.
-- The orders and observations are the ones used today, applied to that player's character
-  instead of a script-created one. The in-game state moves from one agent to one per player
-  index.
-- What it still needs: the script in the save (a prepared save on a server run by anyone), a
-  second Factorio account (one account cannot be connected twice), and a running game window
-  for the agent.
-- It does not make arbitrary public servers playable: without the script in their save there is
-  nothing to receive the orders.
+- The agent's game client starts with `--enable-lua-udp PORT` (`fx client launch HOST:PORT`).
+  The harness sends JSON requests to that port. The script (in the save, on every peer) calls
+  `helpers.recv_udp(player_index)` for each connected player every tick. The game raises
+  `on_udp_packet_received` on every peer alike, and the reply goes back with
+  `helpers.send_udp(port, data, player_index)`. A packet is attributed to the player whose client
+  received it, so a program can only drive the character of the player on whose machine it runs.
+- Tested on 2.1.24 by driving the user's own character, since no second account was available:
+  `hello`, `state`, `walk` and `say` answered over UDP with no RCON involved, the server saw the
+  character arrive where the client was told, and neither side logged a desync.
+- Not done yet: the full order set (mine, craft, place, ...) and the observations for a player's
+  character. That needs the in-game state to move from one agent to one per player index; the
+  order handlers already take the character as a parameter. Also not done: a test with a second
+  account, and running the agent's client without a visible window (the game needs a display).
+- It still needs the script in the save (a prepared save, on a server run by anyone) and a game
+  licence for the agent. It does not make arbitrary public servers playable.
 
 ## Known limits and next steps
 
 - Windows and macOS: written for (no signals, UTF-8 everywhere, `.cmd` launcher, Steam/registry
-  discovery, process checks via the Win32 API), but not run yet.
+  discovery, process checks via the Win32 API), but not run yet. `.github/workflows/tests.yml`
+  runs the offline tests on both (and the live selftest on Linux) once the repository is on
+  GitHub; it has not run yet either.
+- Game versions run so far: 2.0.77 (the first game, and v0.1 development) and 2.1.24 (all live
+  tests). 2.1 changed two things the script relied on: recipes list several crafting categories
+  (`categories`), and reading a property an entity lacks (`fluidbox`, `burner`) raises an error
+  instead of returning nil. The script now handles both versions.
 - One agent per server. Several agents would need per-agent state in `storage` and a name per
   request.
 - Only freeplay saves: the harness replaces the save's control script with freeplay + agent.

@@ -21,3 +21,8 @@ and macOS are supported in the code but untested. Status: v0.1 developer build.
 
 Developing the harness itself: clone the repository and read the "Changing the harness" part of
 [AGENTS.md](AGENTS.md); releases are made with `tools/release.py`.
+
+## License
+
+Apache License 2.0, see [LICENSE](LICENSE). Factorio is a game by Wube Software; this project is
+not affiliated with Wube and ships no part of the game.

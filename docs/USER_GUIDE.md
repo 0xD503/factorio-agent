@@ -119,8 +119,10 @@ connected player: it does not appear in the player list and needs no Factorio ac
   someone else runs that has the agent's script and gives it RCON (below).
 - It cannot join a game hosted from the game window ("Host saved game"): Factorio offers RCON
   only on dedicated servers. It cannot join arbitrary public servers either.
-- Joining as a real player, with its own account and game window, is possible with Factorio
-  2.0 and planned, not built yet.
+- Joining as a real player, with its own Factorio account and game window, is being built:
+  `./fx client launch HOST:PORT` opens a game for the agent's account, and the agent drives its
+  character through that game (experimental: walking and chat work so far). It needs a second
+  Factorio account for the agent, and the server's save must have the agent's script.
 
 To play on a dedicated server someone else runs, they host a save prepared with
 `./fx prepare-save their.zip prepared.zip`, start the server with

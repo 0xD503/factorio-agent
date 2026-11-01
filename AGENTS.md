@@ -59,6 +59,8 @@ command. This file tells you how. Read it fully before your first command, then 
   and checking chat. When nobody is connected the server pauses itself (runs report `game paused`).
 - In co-op an interrupted run only hands control back to you: your queued orders keep running
   in real time. When a player says stop, run `./fx cancel` first, then answer.
+- `fx client` (the agent as a real player through its own game window) is an experimental
+  prototype: only walking and chat. Use the normal session server unless the user asks for it.
 - Never change game speed, kick, ban or pause in co-op; those are the humans' decisions.
 - Mods: a new session uses the mods enabled in the user's game. When `fx` reports that the
   game's mods and the session's differ (new mod downloaded, one disabled), tell the user and ask
@@ -135,6 +137,10 @@ Development workflow:
   `./fx selftest` (a throwaway session in a temporary data directory, about 15 seconds).
 - Never hard-code anything about the machine you run on: paths, user names, installs. Machine
   facts belong in the user's data directory (`config.json`, sessions), found at run time.
+- Write Lua that survives game updates: read optional entity or prototype properties with
+  `common.get(obj, "key")`. Factorio 2.1 raises an error for a property an object lacks,
+  where 2.0 returned nil. Check the API of the installed version with `./fx apidoc`. After
+  a game update, run `./fx selftest` before anything else; it caught both 2.1 breakages.
 - Releases: bump `__version__` in `fxa/__init__.py`, commit, then
   `python3 tools/release.py VERSION --notes FILE` (annotated tag + zip/tar.gz from `git archive`
   + checksums in `dist/`); `--publish` pushes the tag and creates a GitHub release with `gh`.

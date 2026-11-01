@@ -168,7 +168,7 @@ local function describe_unsafe(e)
   -- Where pipes have to go to connect, and whether something is connected there.
   -- For a pipe-to-ground the underground end is marked [ug].
   if kind ~= "pipe" then
-    local fluidbox = e.fluidbox
+    local fluidbox = common.get(e, "fluidbox") or {}
     local pipes = {}
     for index = 1, #fluidbox do
       for _, connection in pairs(fluidbox.get_pipe_connections(index)) do
@@ -180,7 +180,7 @@ local function describe_unsafe(e)
     if #pipes > 0 then d.pipes = table.concat(pipes, " ") end
   end
 
-  local burner = e.burner
+  local burner = common.get(e, "burner")
   if burner then
     d.fuel = burner.inventory.get_item_count()
     if burner.currently_burning then d.burning = burner.currently_burning.name.name end
@@ -592,20 +592,38 @@ end
 ---------------------------------------------------------------------------
 -- Recipes, technologies, statistics
 
+-- The recipe's crafting categories. Newer 2.0 releases list several (`categories`); earlier
+-- ones had one (`category`). Reading a key a LuaObject does not have raises, hence pcall.
+local function recipe_categories(proto)
+  local ok, list = pcall(function() return proto.categories end)
+  if ok and type(list) == "table" then return list end
+  local ok_one, one = pcall(function() return proto.category end)
+  if ok_one and one then return {one} end
+  return {}
+end
+
 local function recipe_info(recipe, force, ch)
   local proto = recipe.prototype
-  local info = {name = recipe.name, category = proto.category, seconds = proto.energy, enabled = recipe.enabled,
-                ingredients = {}, products = {}}
+  local categories = recipe_categories(proto)
+  local info = {name = recipe.name, category = table.concat(categories, ","), seconds = proto.energy,
+                enabled = recipe.enabled, ingredients = {}, products = {}}
   for _, ingredient in pairs(proto.ingredients) do
     info.ingredients[ingredient.name] = ingredient.amount
   end
   for _, product in pairs(proto.products) do
     info.products[product.name] = product.amount or ((product.amount_min + product.amount_max) / 2)
   end
-  info.by_hand = ch ~= nil and ch.prototype.crafting_categories[proto.category] == true
+  info.by_hand = false
   info.made_in = {}
-  for name in pairs(prototypes.get_entity_filtered{{filter = "crafting-category", crafting_category = proto.category}}) do
-    if name ~= "character" then info.made_in[#info.made_in + 1] = name end
+  local seen = {}
+  for _, category in pairs(categories) do
+    if ch ~= nil and ch.prototype.crafting_categories[category] then info.by_hand = true end
+    for name in pairs(prototypes.get_entity_filtered{{filter = "crafting-category", crafting_category = category}}) do
+      if name ~= "character" and not seen[name] then
+        seen[name] = true
+        info.made_in[#info.made_in + 1] = name
+      end
+    end
   end
   return info
 end
