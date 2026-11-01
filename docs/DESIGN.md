@@ -44,9 +44,11 @@ The agent is a script-driven character on a server the harness can reach over RC
 a game client. As a result:
 
 - No Factorio account or licence is needed for the agent; humans join with their own.
-- The server can be the harness's own (the usual case), the user's game window started with
-  `--host` and RCON flags (`fx host`, experimental), or a dedicated server elsewhere that runs a
-  prepared save and grants RCON (`fx attach`).
+- The server can be the harness's own (the usual case; the full game works as a dedicated
+  server too, so no separate download is needed) or a dedicated server elsewhere that runs a
+  prepared save and grants RCON (`fx attach`). A game hosted from the game window cannot be
+  used: with 2.0.77, a game started with `--host` ignores `--rcon-port`, `--rcon-bind` and
+  `--port` (tested).
 - Joining a third-party server the agent has no RCON on is not possible. That would take a
   second licence and driving the graphical client, which this design avoids.
 - The agent cannot use `/whisper`. Players talk to it in plain chat, and it can answer one player
@@ -136,7 +138,6 @@ interpreted safely. Revisit if profiling ever shows the harness in the critical 
 
 - Windows and macOS: written for (no signals, UTF-8 everywhere, `.cmd` launcher, Steam/registry
   discovery, process checks via the Win32 API), but not run yet.
-- `fx host` (the player's game window hosting with RCON) is not verified.
 - One agent per server. Several agents would need per-agent state in `storage` and a name per
   request.
 - Only freeplay saves: the harness replaces the save's control script with freeplay + agent.

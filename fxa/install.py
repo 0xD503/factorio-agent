@@ -2,7 +2,7 @@
 
 Two installs are configured, and they may be the same one:
     server  runs the game server (the Linux headless build, or the full game with --start-server)
-    client  the game a person plays with (only used to launch it: `fx join`, `fx host`)
+    client  the game a person plays with (only used to launch it: `fx join`)
 
 They come from, in order: command-line flags, FACTORIO_SERVER / FACTORIO_CLIENT / FACTORIO_PATH,
 config.json (`fx setup`), and finally a search of the usual places (Steam libraries, standalone

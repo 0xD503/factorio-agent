@@ -84,15 +84,17 @@ The agent creates a co-op session like this (you can do it yourself too):
 The agent's character has its name floating above it. It plays by the same rules as you: it
 has to walk, mine, craft and carry everything.
 
-### Other ways to host (experimental)
+### Hosting somewhere else
 
-- **From your own game window**: `./fx host` starts your Factorio hosting the session's save,
-  with a local RCON port for the agent. Not verified with every build yet.
-- **On a dedicated server someone else runs**: they host a save prepared with
-  `./fx prepare-save their.zip prepared.zip`, start the server with
-  `--rcon-bind ADDRESS:PORT --rcon-password PW`, and give you that address and password. Then
-  `./fx attach HOST:PORT --password-file pw.txt`. RCON is unencrypted: use it over a VPN or SSH
-  tunnel, never openly across the internet.
+The agent needs RCON on the server, and Factorio only offers RCON on dedicated servers
+(`--start-server`, which is what `fx server start` runs). A game hosted from the game window
+("Host saved game") ignores the RCON options, so the agent cannot join that way.
+
+To play on a dedicated server someone else runs, they host a save prepared with
+`./fx prepare-save their.zip prepared.zip`, start the server with
+`--rcon-bind ADDRESS:PORT --rcon-password PW`, and give you that address and password. Then
+`./fx attach HOST:PORT --password-file pw.txt`. RCON is unencrypted: use it over a VPN or SSH
+tunnel, never openly across the internet.
 
 ## Sessions
 

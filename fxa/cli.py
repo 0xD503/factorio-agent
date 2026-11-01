@@ -79,8 +79,6 @@ def build_parser():
     p.add_argument("source")
     p.add_argument("dest")
     sub.add_parser("join", help="open your game connected to this session's server")
-    p = sub.add_parser("host", help="(experimental) open your game hosting the session's save, with RCON for the agent")
-    p.add_argument("--save")
 
     # -- multiplayer
     p = sub.add_parser("mode", help="switch between solo and coop (also restart the server for its network settings)")
@@ -513,40 +511,6 @@ def cmd_join(args):
     return 0
 
 
-def cmd_host(args):
-    """Experimental: the player's own game hosts, and the agent attaches over RCON."""
-    s = session.current(args.session)
-    srv = server.Server(s)
-    if srv.running():
-        print("the session's own server is running; stop it first", file=sys.stderr)
-        return 1
-    save = args.save or s.meta.get("save") or "game"
-    path = s.save_path(save)
-    savefile.inject(path)
-    rcon_port = server.free_port("tcp", "127.0.0.1")
-    password = s.secret("rcon_password", create=True)
-    proc = _launch_client(["--host", str(path), "--rcon-bind", f"127.0.0.1:{rcon_port}", "--rcon-password", password])
-    target = server.Target("127.0.0.1", rcon_port, password, label="your game")
-    deadline = time.time() + 180
-    while time.time() < deadline:
-        try:
-            with Game(target, s) as g:
-                paths.write_json(srv.run_file, {"pid": proc.pid, "save": save, "bind": "client", "game_port": None,
-                                                "rcon_port": rcon_port, "hosted_by_client": True, "started": time.time()})
-                _configure(g, s)
-                if not g.state().get("started"):
-                    g.call("start")
-                print(f"your game is hosting {path.name}; the agent is connected over RCON port {rcon_port}")
-                return 0
-        except GameError:
-            if proc.poll() is not None:
-                print("the game exited", file=sys.stderr)
-                return 1
-            time.sleep(1)
-    print("the game did not open RCON within 3 minutes (hosting with RCON may not be supported by this build)", file=sys.stderr)
-    return 1
-
-
 # ---------------------------------------------------------------------------
 # multiplayer
 
@@ -748,7 +712,7 @@ def cmd_apidoc(args):
 
 LOCAL = {"apidoc": cmd_apidoc, "setup": cmd_setup, "doctor": cmd_doctor, "selftest": cmd_selftest, "session": cmd_session,
          "server": cmd_server, "password": cmd_password, "attach": cmd_attach, "prepare-save": cmd_prepare_save,
-         "join": cmd_join, "host": cmd_host, "kb": cmd_kb, "skill": cmd_skill}
+         "join": cmd_join, "kb": cmd_kb, "skill": cmd_skill}
 
 
 def main(argv=None):

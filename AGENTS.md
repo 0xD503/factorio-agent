@@ -54,6 +54,8 @@ command. This file tells you how. Read it fully before your first command, then 
   things other players built. Use `[gps=x,y]` in messages to point at places.
 - While players are connected, do not end your turn unless they tell you to stop: keep playing
   and checking chat. When nobody is connected the server pauses itself (runs report `game paused`).
+- In co-op an interrupted run only hands control back to you: your queued orders keep running
+  in real time. When a player says stop, run `./fx cancel` first, then answer.
 - Never change game speed, kick, ban or pause in co-op; those are the humans' decisions.
 
 ## Writing things down (this is how you improve)

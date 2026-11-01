@@ -373,8 +373,12 @@ ops.report = function()
   st.reported_inventory = now
   out.state.inventory = nil
   out.changed = changed
-  -- Chat since the previous report, so every report shows what players said.
-  out.chat = social.lines(st, st.chat_reported, 50)
+  -- Chat the agent has not seen yet (not fetched with `chat`, not its own lines).
+  local unseen = {}
+  for _, line in pairs(social.lines(st, st.chat_reported, 50)) do
+    if not line.self then unseen[#unseen + 1] = line end
+  end
+  out.chat = unseen
   st.chat_reported = st.chat_seq
   st.run, st.stop, st.dropped = nil, nil, nil
   st.results, st.events = {}, {}
@@ -461,7 +465,10 @@ end
 ops.chat = function(req)
   local st = common.state()
   st.chat_pending = nil
-  return {lines = social.lines(st, req.since, req.limit or 50), seq = st.chat_seq}
+  local lines = social.lines(st, req.since, req.limit or 50)
+  local last = lines[#lines]
+  if last and last.id > st.chat_reported then st.chat_reported = last.id end
+  return {lines = lines, seq = st.chat_seq}
 end
 
 ops.say = function(req)
