@@ -123,6 +123,15 @@ local function describe_unsafe(e)
         d.amount = e.amount
         return d
     end
+    if kind == "entity-ghost" then
+        d.ghost = e.ghost_name
+        local ok, recipe = pcall(function()
+            return e.get_recipe()
+        end)
+        if ok and recipe then
+            d.recipe = recipe.name
+        end
+    end
     if e.supports_direction then
         d.dir = common.dir_name(e.direction)
     end
