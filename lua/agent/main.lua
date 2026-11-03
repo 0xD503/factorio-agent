@@ -563,6 +563,10 @@ ops.save = function(req)
     return { saving = req.name }
 end
 
+ops.import_blueprint = function(req)
+    return orders.import_blueprint(req)
+end
+
 -- Mode, name, colour and chat handling; see the header and social.lua.
 ops.configure = function(req)
     local st = common.state()

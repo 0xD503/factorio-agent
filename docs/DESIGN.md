@@ -101,6 +101,7 @@ other people. Threats and what stops them:
 | The harness changes the user's game | Servers use their own write-data directory per session. The user's config, saves, mods and `player-data.json` are never read or written. |
 | Unwanted downloads or updates | The harness downloads nothing. Mods are copied from the user's own mods folder. |
 | The blueprint bench's Lua reaches a real game | It only runs in a temporary data directory started by `tools/bench/run.py`. `fx` cannot load it, it has no console commands and it is in no layer or session. See "Blueprint generator and bench". |
+| `fx import` reads a file | Only the CLI command does, never a skill. It sends nothing but a string shaped like a blueprint string (base64 after a version byte, at most 1 MB) to the game, which reads it itself, and prints only the blueprint's size. |
 | The agent edits the harness badly | Allowed, but on a git branch with tests passing and the user told (`AGENTS.md`). Lua changes go through `fx selftest`, which uses a throwaway session. |
 
 Fair play is a separate rule from safety. The CLI has no way to run arbitrary
@@ -113,7 +114,12 @@ time and need no item or reach, but only work on ground that has been seen.
 They build nothing: ghosts become buildings through robots, which need real
 items in their network, or through `fill`, which needs the item in the inventory
 and walks into reach. `limit` opens the chest, so it needs reach. Blueprints
-only come from areas of the running game; there is no way to import one.
+come from areas of the running game, or from a blueprint string, as a player
+pastes one into the library: `fx import NAME FILE`. It is a command, not an
+order, so skills cannot use it to read files; it sends only text shaped like a
+blueprint string, and the game itself reads the string. Books are refused.
+Circuit wires in a blueprint are not built by `stamp`, so a pump or inserter
+that needs a wire runs as if it had none.
 
 ## Blueprint generator and bench
 

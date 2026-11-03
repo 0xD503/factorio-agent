@@ -439,6 +439,38 @@ class LiveTest(unittest.TestCase):
             self.game.do(blueprint("../bad", *area)).ok,
         )
 
+    def test_25a_imported_blueprint_stamps_like_a_copied_area(self):
+        import sys
+
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from tools.blueprints import codec
+        from tools.blueprints.layout import EAST, Module
+
+        x, y = self.plan_site()
+        module = Module("imported")
+        module.add("assembling-machine-1", 0, 0, recipe="iron-gear-wheel")
+        module.add("inserter", 3, 1, EAST)
+        reply = self.game.call(
+            "import_blueprint", name="imported", string=module.string()
+        )
+        self.assertEqual(
+            (reply["entities"], reply["width"], reply["height"]), (2, 4, 3)
+        )
+        left, top = int(x) + 80, int(y)
+        self.do(stamp("imported", left, top))
+        machine = self.ent(left + 1.5, top + 1.5, "entity-ghost")
+        self.assertEqual(machine["ghost"], "assembling-machine-1")
+        self.assertEqual(machine["recipe"], "iron-gear-wheel")
+        inserter = self.ent(left + 3.5, top + 1.5, "entity-ghost")
+        self.assertEqual(inserter["dir"], "e")
+        self.do(
+            deconstruct(left - 1, top - 1, left + 6, top + 5, "entity-ghost")
+        )
+        book = {"blueprint_book": {"item": "blueprint-book", "blueprints": []}}
+        for bad in ("0notbase64!", codec.encode(book)):
+            with self.assertRaises(Exception):
+                self.game.call("import_blueprint", name="bad", string=bad)
+
     def test_26_marks_for_robots(self):
         x, y = self.plan_site()
         self.give(

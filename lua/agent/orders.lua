@@ -1010,6 +1010,81 @@ handlers.blueprint = function(order, ch)
     return "done", { blueprint = name, entities = #entities }
 end
 
+-- A blueprint string, as a player pastes one into the blueprint library. Kept
+-- like a copied area: positions relative to the top-left tile corner of what
+-- the buildings cover, so `stamp` treats it the same way. It only ever makes
+-- ghosts. Books are refused: import their pages one at a time.
+function orders.import_blueprint(req)
+    local name = req.name
+    if
+        type(name) ~= "string"
+        or #name > 40
+        or not name:match("^[%w_%-%.]+$")
+    then
+        error("blueprint names use letters, digits, '.', '-' and '_'", 0)
+    end
+    if type(req.string) ~= "string" or #req.string > 1000000 then
+        error("no blueprint string", 0)
+    end
+    local book = blueprint_book()
+    if not book.prints[name] and book.used >= MAX_BLUEPRINTS then
+        error("no room for more blueprints", 0)
+    end
+    local stack = scratch_blueprint()
+    if stack.import_stack(req.string) == 1 then
+        error("the game could not read that blueprint string", 0)
+    end
+    if stack.is_blueprint_book or not stack.is_blueprint then
+        stack.clear()
+        error("that is not a single blueprint (books are not supported)", 0)
+    end
+    local entities = stack.is_blueprint_setup()
+        and stack.get_blueprint_entities()
+    if not entities or #entities == 0 then
+        error("the blueprint has no buildings", 0)
+    end
+    local left, top = math.huge, math.huge
+    local right, bottom = -math.huge, -math.huge
+    for _, entry in pairs(entities) do
+        local proto = prototypes.entity[entry.name]
+        if not proto then
+            error("unknown building " .. tostring(entry.name), 0)
+        end
+        local width, height = proto.tile_width, proto.tile_height
+        local d = entry.direction or 0
+        if d == defines.direction.east or d == defines.direction.west then
+            width, height = height, width
+        end
+        left = math.min(left, entry.position.x - width / 2)
+        top = math.min(top, entry.position.y - height / 2)
+        right = math.max(right, entry.position.x + width / 2)
+        bottom = math.max(bottom, entry.position.y + height / 2)
+    end
+    left, top = math.floor(left + 0.01), math.floor(top + 0.01)
+    for _, entry in pairs(entities) do
+        entry.position = {
+            x = entry.position.x - left,
+            y = entry.position.y - top,
+        }
+    end
+    if not book.prints[name] then
+        book.used = book.used + 1
+    end
+    book.prints[name] = {
+        entities = entities,
+        width = math.ceil(right - 0.01) - left,
+        height = math.ceil(bottom - 0.01) - top,
+        count = #entities,
+    }
+    stack.clear()
+    return {
+        blueprint = name,
+        entities = #entities,
+        width = book.prints[name].width,
+        height = book.prints[name].height,
+    }
+end
+
 -- Where a vector ends up when a blueprint is turned to face `direction`.
 local function turned(x, y, direction)
     if direction == defines.direction.east then

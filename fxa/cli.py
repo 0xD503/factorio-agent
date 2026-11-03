@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -393,6 +394,12 @@ def build_parser():
     p = sub.add_parser("save", help="write a named checkpoint save")
     p.add_argument("name")
     p = sub.add_parser(
+        "import",
+        help="read a blueprint string from a file, to stamp like a copied area",
+    )
+    p.add_argument("name")
+    p.add_argument("file")
+    p = sub.add_parser(
         "apidoc",
         help="look up the game's Lua API reference (harness development)",
     )
@@ -531,6 +538,30 @@ def cmd_setup(args):
         "version)"
     )
     return 0
+
+
+BLUEPRINT_STRING = re.compile(r"0[A-Za-z0-9+/=]+")
+
+
+def read_blueprint_string(path):
+    """The blueprint string in a file, checked to be only that.
+
+    The file is read here, outside any skill sandbox, and only text shaped like
+    a blueprint string goes to the game, so the command cannot carry anything
+    else from the file system into the save or the output.
+    """
+    try:
+        data = Path(path).read_bytes()
+    except OSError as e:
+        raise SystemExit(f"fx import: cannot read {path}: {e.strerror}")
+    if len(data) > 1_000_000:
+        raise SystemExit("fx import: that file is too big for a blueprint")
+    text = "".join(data.decode("ascii", errors="replace").split())
+    if not BLUEPRINT_STRING.fullmatch(text):
+        raise SystemExit(
+            "fx import: that file does not hold a blueprint string"
+        )
+    return text
 
 
 def cmd_doctor(args):
@@ -1355,6 +1386,17 @@ def game_command(args, game):
         reply = game.call("speed", speed=args.value)
     elif command == "save":
         print(f"saved {game.save(args.name)}")
+        return 0
+    elif command == "import":
+        reply = game.call(
+            "import_blueprint",
+            name=args.name,
+            string=read_blueprint_string(args.file),
+        )
+        print(
+            f"blueprint {reply['blueprint']}: {reply['entities']} entities, "
+            f"{reply['width']}x{reply['height']}"
+        )
         return 0
     elif command == "call":
         reply = game.call(args.op, **json.loads(args.args))

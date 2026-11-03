@@ -55,7 +55,8 @@ first command, then read `docs/USER_GUIDE.md` only if you need setup details.
 - Plan instead of placing one by one: `fx do --help` lists `ghost`, `blueprint`,
   `stamp`, `fill`, `limit`, and the robot marks `deconstruct`, `upgrade`,
   `modules`, `unmark`. `fx bots` shows what robots have left to do. See the
-  `planning` knowledge item.
+  `planning` knowledge item. `fx import NAME FILE` reads a blueprint string
+  (such as one from `dist/blueprints/`) to stamp like a copied area.
 - Skills: `./fx skill list`, `./fx skill run turrets target=40`. They are
   sandboxed scripts that play through the same orders. Write new ones when a
   routine repeats (see `layers/core/knowledge/skills-and-knowledge.md`).

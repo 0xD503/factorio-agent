@@ -36,5 +36,7 @@ author: Claude (speedrun harness work, 2026-11)
 - `fx bots` shows networks and free robots, how many ghosts and marks are
   waiting, ghosts out of every network's range, ghosts whose item the network
   lacks, and the blueprints. Check it before giving robots more work.
-- Not available: requester chest requests, personal logistics and importing
-  blueprint strings.
+- `fx import NAME FILE` (a command, not an order) reads a blueprint string from
+  a file and keeps it like a copied area, for `stamp`. Circuit wires in it are
+  not built, so a pump meant to be switched by a wire simply runs.
+- Not available: requester chest requests and personal logistics.
