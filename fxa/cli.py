@@ -359,6 +359,10 @@ def build_parser():
     p.add_argument("names", nargs="*")
     sub.add_parser("enemies", help="known nests, evolution, pollution")
     sub.add_parser("power", help="electric network near the character")
+    sub.add_parser(
+        "bots",
+        help="robot networks, ghosts and marks waiting for them, blueprints",
+    )
     sub.add_parser("mods", help="mods active in the game")
     p = sub.add_parser(
         "do",
@@ -1303,6 +1307,8 @@ def game_command(args, game):
         reply, show = game.call("production", names=names), fmt.production
     elif command == "power":
         reply, show = game.call("power"), fmt.power
+    elif command == "bots":
+        reply, show = game.call("bots"), fmt.bots
     elif command == "enemies":
         reply, show = game.call("enemies"), fmt.enemies
     elif command == "mods":

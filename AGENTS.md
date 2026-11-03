@@ -52,6 +52,10 @@ first command, then read `docs/USER_GUIDE.md` only if you need setup details.
 - Look before you build: `fx scan`, `fx map X Y -w 60 -H 30`,
   `fx ents X Y -r 10`, `fx status`, `fx recipe NAME`, `fx prod`, `fx power`,
   `fx enemies`.
+- Plan instead of placing one by one: `fx do --help` lists `ghost`, `blueprint`,
+  `stamp`, `fill`, `limit`, and the robot marks `deconstruct`, `upgrade`,
+  `modules`, `unmark`. `fx bots` shows what robots have left to do. See the
+  `planning` knowledge item.
 - Skills: `./fx skill list`, `./fx skill run turrets target=40`. They are
   sandboxed scripts that play through the same orders. Write new ones when a
   routine repeats (see `layers/core/knowledge/skills-and-knowledge.md`).
@@ -71,8 +75,8 @@ first command, then read `docs/USER_GUIDE.md` only if you need setup details.
   run report also shows new chat lines, and a line that mentions your name
   interrupts the run (reason `chat`).
 - Answer players promptly and briefly. Agree on who does what. Ask before taking
-  or removing things other players built. Use `[gps=x,y]` in messages to point
-  at places.
+  or removing things other players built; `deconstruct`, `upgrade` and removing
+  ghosts count. Use `[gps=x,y]` in messages to point at places.
 - While players are connected, do not end your turn unless they tell you to
   stop: keep playing and checking chat. When nobody is connected the server
   pauses itself (runs report `game paused`).

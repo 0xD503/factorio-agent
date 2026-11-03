@@ -15,7 +15,25 @@ import zipfile
 from pathlib import Path
 
 from fxa import install, savefile, server, session
-from fxa.game import Game, craft, mine, place, put, take, wait, walk
+from fxa.game import (
+    Game,
+    blueprint,
+    craft,
+    deconstruct,
+    fill,
+    ghost,
+    limit,
+    mine,
+    modules,
+    place,
+    put,
+    stamp,
+    take,
+    unmark,
+    upgrade,
+    wait,
+    walk,
+)
 
 SEED = 12345
 WALK_SPEED = 0.15  # tiles per tick
@@ -281,6 +299,262 @@ class LiveTest(unittest.TestCase):
         self.do({"type": "uncraft", "recipe": "iron-gear-wheel"})
         self.assertEqual(self.count("iron-plate"), plates)
         self.do({"type": "pickup", "ticks": 10})
+
+    # -- planning: limits, ghosts, blueprints, robots --------------------------
+
+    def ent(self, x, y, name=None):
+        args = {"x": x, "y": y, "r": 0.4}
+        if name:
+            args["name"] = name
+        found = self.game.call("entities", **args)["entities"]
+        return found[0] if found else None
+
+    def plan_site(self):
+        """Open ground near the character: scenery cleared by hand, which only
+        this test session may do."""
+        here = self.character()
+        x, y = round(here["x"]) + 0.5, round(here["y"]) + 12.5
+        self.lua(
+            "for _, e in pairs(game.surfaces[1].find_entities_filtered{"
+            f"area={{{{{x - 30},{y - 30}}},{{{x + 100},{y + 50}}}}}, "
+            "type={'tree','simple-entity'}}) do e.destroy() end"
+        )
+        return x, y
+
+    def test_22_chest_limit(self):
+        x, y = self.plan_site()
+        self.give(wooden_chest=1)
+        self.do(place("wooden-chest", x, y))
+        self.do(limit(x, y, 2))
+        self.assertEqual(self.ent(x, y)["limit"], 2)
+        self.do(limit(x, y))
+        self.assertNotIn("limit", self.ent(x, y))
+        self.do(mine(x, y))
+
+    def test_23_ghosts_need_no_item_or_reach(self):
+        x, y = self.plan_site()
+        before = self.character()
+        self.assertEqual(self.count("assembling-machine-1"), 0)
+        self.do(
+            ghost("assembling-machine-1", x, y, recipe="iron-gear-wheel"),
+            ghost("underground-belt", x + 4, y, "e", ug_type="output"),
+        )
+        self.assertEqual(self.character()["x"], before["x"])
+        machine = self.ent(x, y, "entity-ghost")
+        self.assertEqual(machine["ghost"], "assembling-machine-1")
+        self.assertEqual(machine["recipe"], "iron-gear-wheel")
+        self.assertEqual(self.ent(x + 4, y)["ghost"], "underground-belt")
+        self.assertEqual(self.game.call("bots")["ghosts"], 2)
+        report = self.game.do(ghost("lab", 100000.5, 100000.5))
+        self.assertFalse(report.ok)
+        self.do(deconstruct(x - 3, y - 3, x + 6, y + 3, "entity-ghost"))
+        self.assertEqual(self.game.call("bots")["ghosts"], 0)
+
+    def test_24_placing_on_a_ghost_replaces_it(self):
+        x, y = self.plan_site()
+        self.give(inserter=1)
+        self.do(ghost("inserter", x, y, "e"), place("inserter", x, y, "e"))
+        self.assertEqual(self.ent(x, y)["name"], "inserter")
+        self.assertEqual(self.game.call("bots")["ghosts"], 0)
+        self.do(mine(x, y))
+
+    def test_25_blueprint_stamps_at_the_exact_offset(self):
+        x, y = self.plan_site()
+        self.give(
+            wooden_chest=1,
+            assembling_machine_1=1,
+            inserter=1,
+            transport_belt=2,
+            underground_belt=2,
+            stone_furnace=1,
+        )
+        self.do(
+            place("assembling-machine-1", x, y, recipe="iron-gear-wheel"),
+            place("inserter", x + 2, y, "w"),
+            place("wooden-chest", x + 3, y),
+            limit(x + 3, y, 3),
+            place("transport-belt", x - 2, y + 3, "e"),
+            place("underground-belt", x - 1, y + 3, "e", ug_type="input"),
+            place("underground-belt", x + 2, y + 3, "e", ug_type="output"),
+            place("stone-furnace", x + 4.5, y + 3.5),
+        )
+        area = (x - 3, y - 2, x + 6, y + 5)
+        report = self.do(blueprint("cell", *area))
+        self.assertEqual(report.results[0]["info"]["entities"], 7)
+        dx, dy = 20, 3
+        self.do(stamp("cell", area[0] + dx, area[1] + dy))
+        machine = self.ent(x + dx, y + dy, "entity-ghost")
+        self.assertEqual(machine["ghost"], "assembling-machine-1")
+        self.assertEqual(machine["recipe"], "iron-gear-wheel")
+        self.assertEqual(self.ent(x + 2 + dx, y + dy)["dir"], "w")
+        self.assertEqual(
+            self.ent(x + 4.5 + dx, y + 3.5 + dy, "entity-ghost")["ghost"],
+            "stone-furnace",
+        )
+        self.assertEqual(self.game.call("bots")["ghosts"], 7)
+
+        # By hand: what is in the inventory gets built, the rest is reported.
+        self.give(
+            wooden_chest=1,
+            assembling_machine_1=1,
+            transport_belt=1,
+            underground_belt=2,
+            stone_furnace=1,
+        )
+        self.lua(
+            "storage.agent.character.remove_item{name='inserter', count=1000}"
+        )
+        report = self.do(
+            fill(area[0] + dx, area[1] + dy, area[2] + dx, area[3] + dy)
+        )
+        result = report.results[0]["info"]
+        self.assertEqual(result["built"], 6)
+        self.assertEqual(result["missing"], {"inserter": 1})
+        built = self.ent(x + dx, y + dy, "assembling-machine-1")
+        self.assertEqual(built["recipe"], "iron-gear-wheel")
+        self.assertEqual(self.ent(x + 3 + dx, y + dy)["limit"], 3)
+        self.assertEqual(self.ent(x + 2 + dx, y + 3 + dy)["ug"], "output")
+        self.assertEqual(self.count("assembling-machine-1"), 0)
+        self.assertEqual(self.game.call("bots")["ghosts"], 1)
+
+        # Turned, the area's corner stays at the position given.
+        self.do(stamp("cell", x + 60.5, y, "e"))
+        belt = self.game.call(
+            "entities", x=x + 57, y=y + 2, r=9, name="entity-ghost"
+        )["entities"]
+        directions = {e["dir"] for e in belt if e["ghost"] == "transport-belt"}
+        self.assertEqual(directions, {"s"})
+        self.do(
+            deconstruct(x + 40, y - 10, x + 70, y + 20, "entity-ghost"),
+            deconstruct(
+                area[0] + dx,
+                area[1] + dy,
+                area[2] + dx,
+                area[3] + dy,
+                "entity-ghost",
+            ),
+        )
+        self.assertFalse(self.game.do(stamp("nothing-here", x, y)).ok)
+        self.assertFalse(
+            self.game.do(blueprint("../bad", *area)).ok,
+        )
+
+    def test_26_marks_for_robots(self):
+        x, y = self.plan_site()
+        self.give(
+            transport_belt=2,
+            lab=1,
+            speed_module=2,
+        )
+        self.do(
+            place("transport-belt", x, y, "e"),
+            place("transport-belt", x + 1, y, "e"),
+            place("lab", x, y + 3),
+        )
+        area = (x - 2, y - 1, x + 3, y + 1)
+        self.assertEqual(
+            self.do(
+                upgrade(*area, "transport-belt", "fast-transport-belt")
+            ).results[0]["info"]["marked"],
+            2,
+        )
+        self.assertEqual(self.ent(x, y)["marked"], "upgrade")
+        self.assertEqual(
+            self.do(unmark(*area)).results[0]["info"]["cleared"], 2
+        )
+        self.assertNotIn("marked", self.ent(x, y))
+        self.assertEqual(
+            self.do(deconstruct(*area)).results[0]["info"]["marked"], 2
+        )
+        self.assertEqual(self.ent(x, y)["marked"], "deconstruct")
+        self.assertEqual(self.game.call("bots")["deconstruct"], 2)
+        self.assertEqual(
+            self.do(unmark(*area)).results[0]["info"]["cleared"], 2
+        )
+        report = self.do(
+            modules(x - 3, y + 1, x + 3, y + 5, "speed-module", "lab")
+        )
+        self.assertEqual(report.results[0]["info"]["machines"], 1)
+        self.assertEqual(report.results[0]["info"]["modules"], 2)
+        self.assertEqual(
+            self.game.call("find", name="item-request-proxy", r=300)["found"][
+                0
+            ]["x"],
+            x,
+        )
+        self.assertFalse(
+            self.game.do(modules(*area, "iron-plate")).ok,
+        )
+
+    def test_27_robots_build_a_stamp(self):
+        x, y = self.plan_site()
+        # Power for the roboport, set up by hand: only in this test session.
+        self.lua(
+            "local s = game.surfaces[1]; "
+            f"local e = s.create_entity{{name='electric-energy-interface', "
+            f"position={{{x - 6},{y}}}, force='player'}}; "
+            "e.electric_buffer_size = 1e9; e.power_production = 1e7"
+        )
+        self.give(
+            roboport=1,
+            storage_chest=1,
+            small_electric_pole=1,
+            construction_robot=5,
+            inserter=3,
+        )
+        self.do(
+            place("small-electric-pole", x - 3, y),
+            place("roboport", x, y),
+            place("storage-chest", x + 3, y),
+            put(x + 3, y, "inserter", 3),
+            take(x + 3, y, "inserter", 1),
+            put(x + 3, y, "inserter", 1),
+            put(x, y, "construction-robot", 5),
+        )
+        self.do(ghost("inserter", x + 5, y + 5, "e"))
+        self.do(ghost("inserter", x + 70.5, y, "e"))
+        bots = self.game.call("bots")
+        self.assertEqual(bots["out_of_range"], 1)
+        self.assertEqual(len(bots["networks"]), 1)
+        self.game.run(1200)
+        self.assertEqual(
+            self.ent(x + 5, y + 5, "inserter")["name"],
+            "inserter",
+        )
+        self.do(deconstruct(x + 69, y - 1, x + 72, y + 1, "entity-ghost"))
+        self.assertEqual(self.game.call("bots")["ghosts"], 0)
+
+        # Marks: robots really remove, replace and fill, using the network's
+        # items.
+        self.give(
+            transport_belt=2,
+            fast_transport_belt=1,
+            lab=1,
+            speed_module=4,
+        )
+        self.do(
+            place("transport-belt", x + 8, y + 8, "e"),
+            place("transport-belt", x + 10, y + 8, "e"),
+            place("lab", x + 3, y + 8),
+            put(x + 3, y, "fast-transport-belt", 1),
+            # Two for the lab of the marks test, whose request is still open.
+            put(x + 3, y, "speed-module", 4),
+            deconstruct(x + 7.5, y + 7.5, x + 8.5, y + 8.5),
+            upgrade(
+                x + 9.5,
+                y + 7.5,
+                x + 10.5,
+                y + 8.5,
+                "transport-belt",
+                "fast-transport-belt",
+            ),
+            modules(x + 1, y + 6, x + 5, y + 10, "speed-module"),
+        )
+        self.game.run(1800)
+        self.assertIsNone(self.ent(x + 8, y + 8, "transport-belt"))
+        self.assertEqual(self.ent(x + 10, y + 8)["name"], "fast-transport-belt")
+        lab = self.ent(x + 3, y + 8, "lab")
+        self.assertEqual(lab["items"]["lab_modules"], {"speed-module": 2})
 
     # -- what the agent may see ----------------------------------------------
 

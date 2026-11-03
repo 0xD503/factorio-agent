@@ -111,6 +111,57 @@ def mirror(x, y):
     return _order("mirror", x=x, y=y)
 
 
+def limit(x, y, slots=None):
+    """Limit the chest at (x, y) to this many slots; None removes the limit."""
+    return _order("limit", x=x, y=y, slots=slots)
+
+
+def ghost(item, x, y, dir=None, recipe=None, ug_type=None):
+    """Plan a building for robots or `fill`; needs seen ground, no item."""
+    return _order(
+        "ghost", item=item, x=x, y=y, dir=dir, recipe=recipe, ug_type=ug_type
+    )
+
+
+def blueprint(name, x1, y1, x2, y2):
+    """Copy the buildings in an area under this name."""
+    return _order("blueprint", name=name, x1=x1, y1=y1, x2=x2, y2=y2)
+
+
+def stamp(name, x, y, dir=None):
+    """Ghosts of a blueprint, with the area's top-left corner at (x, y)."""
+    return _order("stamp", name=name, x=x, y=y, dir=dir)
+
+
+def fill(x1, y1, x2, y2):
+    """Build the ghosts in an area by hand, from the inventory."""
+    return _order("fill", x1=x1, y1=y1, x2=x2, y2=y2)
+
+
+def deconstruct(x1, y1, x2, y2, what=None):
+    """Mark an area for robots: own buildings, or only `what` (a name, tree or
+    rock). `entity-ghost` removes ghosts at once."""
+    return _order("deconstruct", x1=x1, y1=y1, x2=x2, y2=y2, what=what)
+
+
+def upgrade(x1, y1, x2, y2, source, target):
+    """Mark the `source` buildings in an area for robots to replace."""
+    return _order(
+        "upgrade", x1=x1, y1=y1, x2=x2, y2=y2, **{"from": source, "to": target}
+    )
+
+
+def modules(x1, y1, x2, y2, item, what=None):
+    """Ask robots to fill free module slots in an area (only `what`, if
+    given)."""
+    return _order("modules", x1=x1, y1=y1, x2=x2, y2=y2, item=item, what=what)
+
+
+def unmark(x1, y1, x2, y2):
+    """Take back deconstruction and upgrade marks in an area."""
+    return _order("unmark", x1=x1, y1=y1, x2=x2, y2=y2)
+
+
 def launch(x, y):
     return _order("launch", x=x, y=y)
 

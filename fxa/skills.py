@@ -15,7 +15,8 @@ A skill file looks like this:
 
 What a skill can call (all of it plain data in, plain data out):
   orders     walk mine craft uncraft wait place put take recipe rotate filter
-             mirror launch pickup equip (the same orders as `fx do`; they only
+             mirror limit ghost blueprint stamp fill deconstruct upgrade modules
+             unmark launch pickup equip (the same orders as `fx do`; they only
              build order dicts)
   running    do(orders, max_ticks=36000) -> report dict; go(orders, label) also
              carries on through alerts (enemy nearby, damage, losses) until the
@@ -127,6 +128,15 @@ def api(game, stack, budget, params, out):
         "rotate",
         "filter",
         "mirror",
+        "limit",
+        "ghost",
+        "blueprint",
+        "stamp",
+        "fill",
+        "deconstruct",
+        "upgrade",
+        "modules",
+        "unmark",
         "launch",
         "pickup",
         "equip",

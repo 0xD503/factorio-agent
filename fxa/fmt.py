@@ -425,3 +425,39 @@ def power(reply):
         "  biggest users (kW): "
         + ", ".join(f"{name} {kw}" for name, kw in top if kw)
     )
+
+
+def bots(reply):
+    lines = []
+    for network in seq(reply.get("networks")):
+        x, y = network["at"]
+        lines.append(
+            f"network at ({num(x)},{num(y)}): "
+            f"{network['roboports']} roboports, "
+            f"construction {network['construction_free']}/"
+            f"{network['construction']} free, logistic "
+            f"{network['logistic_free']}/{network['logistic']} free"
+        )
+    if not lines:
+        lines.append("no robot networks")
+    lines.append(
+        f"ghosts {reply['ghosts']}, marked: deconstruct "
+        f"{reply['deconstruct']}, upgrade {reply['upgrade']}"
+    )
+    if reply.get("out_of_range"):
+        where = " ".join(
+            f"({num(x)},{num(y)})" for x, y in seq(reply.get("out_of_range_at"))
+        )
+        lines.append(f"ghosts out of range: {reply['out_of_range']} at {where}")
+    waiting = reply.get("waiting") or {}
+    if waiting:
+        lines.append(
+            "ghosts with no item in their network: "
+            + ", ".join(f"{name} {n}" for name, n in sorted(waiting.items()))
+        )
+    for entry in seq(reply.get("blueprints")):
+        lines.append(
+            f"blueprint {entry['name']}: {entry['entities']} entities, "
+            f"{num(entry['width'])}x{num(entry['height'])}"
+        )
+    return "\n".join(lines)

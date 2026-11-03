@@ -804,6 +804,559 @@ handlers.pickup = function(order, ch)
 end
 
 ---------------------------------------------------------------------------
+-- Planning: chest limits, ghosts, blueprints and marks for robots
+--
+-- A player does these from the map screen, without walking and without the
+-- items, so they take no time and need no reach, only ground that has been
+-- seen. Nothing gets built by them: robots or `fill` do that, with real items.
+-- The chest limit is the exception: the chest has to be opened, so within
+-- reach.
+
+local MAX_BLUEPRINTS = 64
+local FILL_PER_TICK = 8
+
+local function area_of(order)
+    return {
+        { math.min(order.x1, order.x2), math.min(order.y1, order.y2) },
+        { math.max(order.x1, order.x2), math.max(order.y1, order.y2) },
+    }
+end
+
+local function area_seen(area)
+    for cx = math.floor(area[1][1] / 32), math.floor(area[2][1] / 32) do
+        for cy = math.floor(area[1][2] / 32), math.floor(area[2][2] / 32) do
+            if not common.chunk_seen(cx, cy) then
+                return false
+            end
+        end
+    end
+    return true
+end
+
+local NOT_BUILDINGS = {
+    ["character"] = true,
+    ["character-corpse"] = true,
+    ["construction-robot"] = true,
+    ["logistic-robot"] = true,
+    ["entity-ghost"] = true,
+    ["tile-ghost"] = true,
+    ["item-request-proxy"] = true,
+}
+
+handlers.limit = function(order, ch)
+    local e = target(order, ch)
+    local status, message = approach_entity(order, ch, e)
+    if status ~= "arrived" then
+        return status, message
+    end
+    local inventory = (e.type == "container" or e.type == "logistic-container")
+        and e.get_inventory(defines.inventory.chest)
+    if not (inventory and inventory.supports_bar()) then
+        return "fail", e.name .. " cannot be limited"
+    end
+    if order.slots and order.slots > #inventory then
+        return "fail", string.format("%s has %d slots", e.name, #inventory)
+    end
+    inventory.set_bar(order.slots and order.slots + 1 or nil)
+    return "done", { name = e.name, limit = order.slots or "none" }
+end
+
+-- Blueprints are kept as plain lists; the game's blueprint item is only a tool
+-- for reading an area and for building one ghost, in one slot off the map.
+local function blueprint_book()
+    local st = common.state()
+    local book = st.blueprints
+    if not book then
+        book = { scratch = game.create_inventory(1), prints = {}, used = 0 }
+        st.blueprints = book
+    end
+    return book
+end
+
+local function scratch_blueprint()
+    local stack = blueprint_book().scratch[1]
+    stack.set_stack({ name = "blueprint" })
+    return stack
+end
+
+-- One ghost through a one-entity blueprint: it lands exactly at `position`, and
+-- it can be things a ghost made directly cannot, like the output end of an
+-- underground belt.
+local function build_one(ch, entry, position, direction, mode)
+    local scratch = scratch_blueprint()
+    local copy = {}
+    for key, value in pairs(entry) do
+        copy[key] = value
+    end
+    copy.entity_number = 1
+    copy.position = { x = 0, y = 0 }
+    copy.wires = nil
+    scratch.set_blueprint_entities({ copy })
+    return scratch.build_blueprint({
+        surface = ch.surface,
+        force = ch.force,
+        position = position,
+        direction = direction,
+        build_mode = mode,
+    })[1]
+end
+
+handlers.ghost = function(order, ch)
+    local item = prototypes.item[order.item]
+    if not item then
+        return "fail", "unknown item " .. tostring(order.item)
+    end
+    local proto = item.place_result
+    if not proto then
+        return "fail", order.item .. " cannot be placed as an entity"
+    end
+    local surface = ch.surface
+    local pos = { x = order.x, y = order.y }
+    if not common.charted(pos) then
+        return "fail", "that ground has not been seen"
+    end
+    if order.recipe then
+        local recipe = ch.force.recipes[order.recipe]
+        if not (recipe and recipe.enabled) then
+            return "fail", "recipe " .. order.recipe .. " is not unlocked"
+        end
+    end
+    local direction = common.dir(order.dir) or defines.direction.north
+    local ghost = build_one(ch, {
+        name = proto.name,
+        direction = direction,
+        type = order.ug_type,
+        recipe = order.recipe,
+    }, pos, defines.direction.north, defines.build_mode.normal)
+    if not ghost then
+        return "fail",
+            string.format(
+                "cannot place a ghost of %s at (%s, %s): %s",
+                proto.name,
+                pos.x,
+                pos.y,
+                obstruction(surface, proto, pos, direction)
+            )
+    end
+    return "done",
+        {
+            name = proto.name,
+            x = round(ghost.position.x),
+            y = round(ghost.position.y),
+        }
+end
+
+-- Copy the buildings in an area, with their recipes, chest limits, filters and
+-- modules. A stamp puts the area's top-left corner at the position given, so
+-- copying and stamping at an offset reproduces the area exactly at that offset.
+handlers.blueprint = function(order, ch)
+    local name = order.name
+    if
+        type(name) ~= "string"
+        or #name > 40
+        or not name:match("^[%w_%-%.]+$")
+    then
+        return "fail", "blueprint names use letters, digits, '.', '-' and '_'"
+    end
+    local area = area_of(order)
+    if not area_seen(area) then
+        return "fail", "part of that area has not been seen"
+    end
+    local book = blueprint_book()
+    if not book.prints[name] and book.used >= MAX_BLUEPRINTS then
+        return "fail", "no room for more blueprints"
+    end
+    local stack = scratch_blueprint()
+    local sources = stack.create_blueprint({
+        surface = ch.surface,
+        force = ch.force,
+        area = area,
+        include_modules = true,
+    })
+    local entities = stack.is_blueprint_setup()
+        and stack.get_blueprint_entities()
+    if not entities or #entities == 0 then
+        return "fail", "no buildings in that area"
+    end
+    -- Positions relative to the area's top-left tile corner, so that turning
+    -- around that corner keeps even and odd sized buildings on the grid.
+    local offset
+    for _, entry in pairs(entities) do
+        local source = sources[entry.entity_number]
+        if source then
+            offset = {
+                x = source.position.x - entry.position.x,
+                y = source.position.y - entry.position.y,
+            }
+            break
+        end
+    end
+    local left, top = math.floor(area[1][1]), math.floor(area[1][2])
+    for _, entry in pairs(entities) do
+        entry.position = {
+            x = entry.position.x + offset.x - left,
+            y = entry.position.y + offset.y - top,
+        }
+    end
+    if not book.prints[name] then
+        book.used = book.used + 1
+    end
+    book.prints[name] = {
+        entities = entities,
+        width = area[2][1] - area[1][1],
+        height = area[2][2] - area[1][2],
+        count = #entities,
+    }
+    return "done", { blueprint = name, entities = #entities }
+end
+
+-- Where a vector ends up when a blueprint is turned to face `direction`.
+local function turned(x, y, direction)
+    if direction == defines.direction.east then
+        return -y, x
+    elseif direction == defines.direction.south then
+        return -x, -y
+    elseif direction == defines.direction.west then
+        return y, -x
+    end
+    return x, y
+end
+
+handlers.stamp = function(order, ch)
+    local book = common.state().blueprints
+    local print_ = book and book.prints[order.name]
+    if not print_ then
+        return "fail", "no blueprint called " .. tostring(order.name)
+    end
+    local direction = common.dir(order.dir) or defines.direction.north
+    local wx, wy = turned(print_.width, print_.height, direction)
+    if
+        not area_seen({
+            {
+                math.min(order.x, order.x + wx),
+                math.min(order.y, order.y + wy),
+            },
+            {
+                math.max(order.x, order.x + wx),
+                math.max(order.y, order.y + wy),
+            },
+        })
+    then
+        return "fail", "part of that area has not been seen"
+    end
+    local left, top = math.floor(order.x), math.floor(order.y)
+    local built = 0
+    for _, entry in pairs(print_.entities) do
+        local dx, dy = turned(entry.position.x, entry.position.y, direction)
+        if
+            build_one(
+                ch,
+                entry,
+                { x = left + dx, y = top + dy },
+                direction,
+                defines.build_mode.forced
+            )
+        then
+            built = built + 1
+        end
+    end
+    return "done", { blueprint = order.name, ghosts = built, of = print_.count }
+end
+
+local function ghost_item(ghost, ch)
+    local needed
+    for _, item in pairs(ghost.ghost_prototype.items_to_place_this or {}) do
+        if ch.get_item_count(item.name) >= item.count then
+            return item, nil
+        end
+        needed = needed or item.name
+    end
+    return nil, needed
+end
+
+local function fill_one(order, ch, ghost, item)
+    local unit = ghost.unit_number
+    local position = ghost.position
+    local name = ghost.ghost_name
+    local leftovers, entity = ghost.revive({ raise_revive = true })
+    if not entity then
+        if dist(ch.position, position) < 4 and not order.moved[unit] then
+            order.moved[unit] = true
+            order.aside = ch.surface.find_non_colliding_position(
+                "character",
+                { position.x + 5, position.y },
+                10,
+                0.5
+            )
+            return false
+        end
+        order.blocked[unit] = {
+            name = name,
+            x = round(position.x),
+            y = round(position.y),
+        }
+        return false
+    end
+    ch.remove_item({ name = item.name, count = item.count })
+    for _, stack in pairs(leftovers or {}) do
+        ch.insert(stack)
+    end
+    if entity.type == "radar" then
+        common.mark_seen(
+            math.floor(entity.position.x / 32),
+            math.floor(entity.position.y / 32),
+            common.RADAR_CHUNKS
+        )
+    end
+    order.built = order.built + 1
+    return true
+end
+
+-- Build the ghosts in an area by hand, nearest first, as walking along and
+-- clicking them does: each one needs its item in the inventory and reach.
+handlers.fill = function(order, ch)
+    order.built = order.built or 0
+    order.blocked = order.blocked or {}
+    order.moved = order.moved or {}
+    if order.aside then
+        local status, message = navigate(order, ch, order.aside, 0.6)
+        if status ~= "arrived" then
+            return status, message
+        end
+        order.aside = nil
+    end
+    local reach = ch.build_distance - 1
+    local ghosts = ch.surface.find_entities_filtered({
+        area = area_of(order),
+        type = "entity-ghost",
+        force = ch.force,
+    })
+    local missing, candidates = {}, {}
+    for _, ghost in pairs(ghosts) do
+        if not order.blocked[ghost.unit_number] then
+            local item, needed = ghost_item(ghost, ch)
+            if item then
+                candidates[#candidates + 1] = {
+                    ghost = ghost,
+                    d = dist(ch.position, ghost.position),
+                }
+            else
+                missing[needed] = (missing[needed] or 0) + 1
+            end
+        end
+    end
+    if #candidates == 0 then
+        if order.nav then
+            stop_walking(ch)
+            order.nav = nil
+        end
+        local blocked = {}
+        for _, entry in pairs(order.blocked) do
+            if #blocked < 8 then
+                blocked[#blocked + 1] = entry
+            end
+        end
+        return "done",
+            {
+                built = order.built,
+                missing = next(missing) and missing or nil,
+                blocked = #blocked > 0 and blocked or nil,
+            }
+    end
+    table.sort(candidates, function(a, b)
+        return a.d < b.d
+    end)
+    local goal = order.goal
+    if not (goal and goal.valid) then
+        goal = candidates[1].ghost
+        order.goal = goal
+    end
+    local status, message = navigate(order, ch, goal.position, reach)
+    if status ~= "arrived" then
+        return status, message
+    end
+    order.goal = nil
+    local placed = 0
+    for _, candidate in ipairs(candidates) do
+        if candidate.d > reach or placed >= FILL_PER_TICK or order.aside then
+            break
+        end
+        local item = ghost_item(candidate.ghost, ch)
+        if item and fill_one(order, ch, candidate.ghost, item) then
+            placed = placed + 1
+        end
+    end
+    return "busy"
+end
+
+handlers.deconstruct = function(order, ch)
+    local area = area_of(order)
+    if not area_seen(area) then
+        return "fail", "part of that area has not been seen"
+    end
+    local surface = ch.surface
+    local what = order.what
+    if what == "entity-ghost" then
+        local removed = 0
+        for _, ghost in
+            pairs(surface.find_entities_filtered({
+                area = area,
+                type = "entity-ghost",
+                force = ch.force,
+            }))
+        do
+            ghost.destroy()
+            removed = removed + 1
+        end
+        return "done", { ghosts_removed = removed }
+    end
+    local found
+    if what == "tree" then
+        found = surface.find_entities_filtered({ area = area, type = "tree" })
+    elseif what == "rock" then
+        found = surface.find_entities_filtered({
+            area = area,
+            type = "simple-entity",
+        })
+    elseif what then
+        found = surface.find_entities_filtered({
+            area = area,
+            name = what,
+            force = ch.force,
+        })
+    else
+        found = surface.find_entities_filtered({
+            area = area,
+            force = ch.force,
+        })
+    end
+    local marked = 0
+    for _, e in pairs(found) do
+        if
+            not NOT_BUILDINGS[e.type]
+            and (what ~= "rock" or e.name:find("rock", 1, true))
+            and e.order_deconstruction(ch.force)
+        then
+            marked = marked + 1
+        end
+    end
+    return "done", { marked = marked }
+end
+
+handlers.upgrade = function(order, ch)
+    local area = area_of(order)
+    if not area_seen(area) then
+        return "fail", "part of that area has not been seen"
+    end
+    local to = prototypes.item[order.to]
+    local into = to and to.place_result
+    if not into then
+        return "fail", "cannot upgrade to " .. tostring(order.to)
+    end
+    local from = prototypes.item[order.from]
+    local source = from and from.place_result
+    if not source then
+        return "fail", "cannot upgrade from " .. tostring(order.from)
+    end
+    local marked = 0
+    for _, e in
+        pairs(ch.surface.find_entities_filtered({
+            area = area,
+            name = source.name,
+            force = ch.force,
+        }))
+    do
+        if e.order_upgrade({ target = into.name, force = ch.force }) then
+            marked = marked + 1
+        end
+    end
+    return "done", { marked = marked }
+end
+
+-- Ask robots to bring modules to machines with free slots.
+handlers.modules = function(order, ch)
+    local area = area_of(order)
+    if not area_seen(area) then
+        return "fail", "part of that area has not been seen"
+    end
+    local item = prototypes.item[order.item]
+    if not (item and item.type == "module") then
+        return "fail", tostring(order.item) .. " is not a module"
+    end
+    local surface = ch.surface
+    local machines, requested = 0, 0
+    for _, e in
+        pairs(surface.find_entities_filtered({
+            area = area,
+            name = order.what,
+            force = ch.force,
+        }))
+    do
+        local inventory = not NOT_BUILDINGS[e.type] and e.get_module_inventory()
+        if
+            inventory
+            and inventory.can_insert({ name = order.item })
+            and not surface.find_entity("item-request-proxy", e.position)
+        then
+            local positions = {}
+            for slot = 1, #inventory do
+                if not inventory[slot].valid_for_read then
+                    positions[#positions + 1] = {
+                        inventory = inventory.index,
+                        stack = slot - 1,
+                        count = 1,
+                    }
+                end
+            end
+            if #positions > 0 then
+                surface.create_entity({
+                    name = "item-request-proxy",
+                    position = e.position,
+                    force = ch.force,
+                    target = e,
+                    modules = {
+                        {
+                            id = { name = order.item },
+                            items = { in_inventory = positions },
+                        },
+                    },
+                })
+                machines = machines + 1
+                requested = requested + #positions
+            end
+        end
+    end
+    return "done", { machines = machines, modules = requested }
+end
+
+-- Take back deconstruction and upgrade marks in an area.
+handlers.unmark = function(order, ch)
+    local area = area_of(order)
+    local surface = ch.surface
+    local cleared = 0
+    for _, e in
+        pairs(surface.find_entities_filtered({
+            area = area,
+            to_be_deconstructed = true,
+        }))
+    do
+        e.cancel_deconstruction(ch.force)
+        cleared = cleared + 1
+    end
+    for _, e in
+        pairs(surface.find_entities_filtered({
+            area = area,
+            to_be_upgraded = true,
+        }))
+    do
+        if e.cancel_upgrade(ch.force) then
+            cleared = cleared + 1
+        end
+    end
+    return "done", { cleared = cleared }
+end
+
+---------------------------------------------------------------------------
 -- Queue
 
 function orders.known(kind)

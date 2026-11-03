@@ -181,6 +181,16 @@ local function describe_unsafe(e)
         end
     elseif kind == "underground-belt" then
         d.ug = e.belt_to_ground_type
+    elseif kind == "container" or kind == "logistic-container" then
+        local chest = e.get_inventory(defines.inventory.chest)
+        if chest and chest.supports_bar() and chest.get_bar() <= #chest then
+            d.limit = chest.get_bar() - 1
+        end
+    end
+    if e.to_be_deconstructed() then
+        d.marked = "deconstruct"
+    elseif e.to_be_upgraded() then
+        d.marked = "upgrade"
     end
 
     if e.health and e.health < e.max_health then
@@ -337,6 +347,72 @@ ops.buildings = function(req)
         out[#out + 1] = group
     end
     return { groups = out }
+end
+
+-- What robots have to do and what they have to do it with.
+ops.bots = function()
+    local surface, force = common.surface(), common.force()
+    local networks = {}
+    for _, network in pairs(force.logistic_networks[surface.name] or {}) do
+        local first = network.cells[1]
+        if first then
+            networks[#networks + 1] = {
+                roboports = #network.cells,
+                construction = network.all_construction_robots,
+                construction_free = network.available_construction_robots,
+                logistic = network.all_logistic_robots,
+                logistic_free = network.available_logistic_robots,
+                at = xy(first.owner.position),
+            }
+        end
+    end
+    local out_of_range, waiting, ghosts = {}, {}, 0
+    for _, ghost in
+        pairs(surface.find_entities_filtered({
+            type = "entity-ghost",
+            force = force,
+        }))
+    do
+        ghosts = ghosts + 1
+        local network =
+            surface.find_logistic_network_by_position(ghost.position, force)
+        if not network then
+            if #out_of_range < 6 then
+                out_of_range[#out_of_range + 1] = xy(ghost.position)
+            end
+            out_of_range.total = (out_of_range.total or 0) + 1
+        else
+            local item = ghost.ghost_prototype.items_to_place_this
+            item = item and item[1]
+            if item and network.get_item_count(item.name) < item.count then
+                waiting[item.name] = (waiting[item.name] or 0) + 1
+            end
+        end
+    end
+    local out_total = out_of_range.total or 0
+    out_of_range.total = nil
+    local book = common.state().blueprints
+    local blueprints = {}
+    for name, entry in pairs(book and book.prints or {}) do
+        blueprints[#blueprints + 1] = {
+            name = name,
+            entities = entry.count,
+            width = entry.width,
+            height = entry.height,
+        }
+    end
+    return {
+        networks = networks,
+        ghosts = ghosts,
+        out_of_range = out_total,
+        out_of_range_at = out_of_range,
+        waiting = waiting,
+        deconstruct = surface.count_entities_filtered({
+            to_be_deconstructed = true,
+        }),
+        upgrade = surface.count_entities_filtered({ to_be_upgraded = true }),
+        blueprints = blueprints,
+    }
 end
 
 -- Nearest entities of a name or type.

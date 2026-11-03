@@ -46,6 +46,69 @@ class DslTest(unittest.TestCase):
             ],
         )
 
+    def test_planning_orders(self):
+        self.assertEqual(dsl.parse("limit 1 2 3"), [game.limit(1, 2, 3)])
+        self.assertEqual(dsl.parse("limit 1 2"), [game.limit(1, 2)])
+        self.assertEqual(
+            dsl.parse("ghost underground-belt 1 2 e ug=output"),
+            [game.ghost("underground-belt", 1, 2, "e", ug_type="output")],
+        )
+        self.assertEqual(
+            dsl.parse("blueprint cell 1 2 3 4; stamp cell 5 6 w"),
+            [game.blueprint("cell", 1, 2, 3, 4), game.stamp("cell", 5, 6, "w")],
+        )
+        self.assertEqual(dsl.parse("fill 1 2 3 4"), [game.fill(1, 2, 3, 4)])
+        self.assertEqual(
+            dsl.parse("deconstruct 1 2 3 4 tree"),
+            [game.deconstruct(1, 2, 3, 4, "tree")],
+        )
+        self.assertEqual(
+            dsl.parse("upgrade 1 2 3 4 a b"),
+            [game.upgrade(1, 2, 3, 4, "a", "b")],
+        )
+        self.assertEqual(
+            dsl.parse("modules 1 2 3 4 m lab"),
+            [game.modules(1, 2, 3, 4, "m", "lab")],
+        )
+        self.assertEqual(dsl.parse("unmark 1 2 3 4"), [game.unmark(1, 2, 3, 4)])
+        with self.assertRaises(dsl.ParseError):
+            dsl.parse("fill 1 2 3")
+
+    def test_bots_view(self):
+        text = fmt.bots(
+            {
+                "networks": [
+                    {
+                        "at": [1, 2],
+                        "roboports": 3,
+                        "construction": 10,
+                        "construction_free": 4,
+                        "logistic": 0,
+                        "logistic_free": 0,
+                    }
+                ],
+                "ghosts": 5,
+                "deconstruct": 1,
+                "upgrade": 0,
+                "out_of_range": 2,
+                "out_of_range_at": [[7, 8]],
+                "waiting": {"lab": 2},
+                "blueprints": [
+                    {"name": "cell", "entities": 9, "width": 8, "height": 4}
+                ],
+            }
+        )
+        self.assertIn("3 roboports, construction 4/10 free", text)
+        self.assertIn("ghosts out of range: 2 at (7,8)", text)
+        self.assertIn("no item in their network: lab 2", text)
+        self.assertIn("blueprint cell: 9 entities, 8x4", text)
+        self.assertEqual(
+            fmt.bots(
+                {"ghosts": 0, "deconstruct": 0, "upgrade": 0}
+            ).splitlines()[0],
+            "no robot networks",
+        )
+
     def test_put_take_wait(self):
         self.assertEqual(dsl.parse("put 1 2 coal"), [game.put(1, 2, "coal")])
         self.assertEqual(

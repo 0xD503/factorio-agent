@@ -15,6 +15,17 @@
     filter X Y [ITEM...]          inserter moves only these items; none clears
                                   it
     mirror X Y                    flip a machine so its fluid inlets swap sides
+    limit X Y [SLOTS]             chest takes this many slots; none clears it
+    ghost ITEM X Y [n|e|s|w] [recipe=NAME] [ug=input|output]
+    blueprint NAME X1 Y1 X2 Y2    copy the buildings in an area
+    stamp NAME X Y [n|e|s|w]      its ghosts, the area's top-left corner at X Y
+    fill X1 Y1 X2 Y2              build the ghosts there by hand
+    deconstruct X1 Y1 X2 Y2 [NAME|tree|rock]
+                                  mark for robots; entity-ghost removes ghosts
+    upgrade X1 Y1 X2 Y2 FROM TO   mark for robots to replace
+    modules X1 Y1 X2 Y2 MODULE [NAME]
+                                  robots fill free module slots
+    unmark X1 Y1 X2 Y2            take back deconstruct and upgrade marks
     launch X Y
     pickup [X Y]
     equip ITEM [SLOT]             gun, armour or ammunition into its slot
@@ -59,6 +70,27 @@ def _take(words, n, what):
     if len(words) < n:
         raise ParseError(f"{what}: missing arguments")
     return words[:n], words[n:]
+
+
+def _numbers(*texts):
+    return [_number(text) for text in texts]
+
+
+def _placement(rest):
+    """The optional direction, recipe= and ug= of place and ghost."""
+    direction = recipe = ug_type = None
+    while rest:
+        word = rest[0]
+        if word in DIRECTIONS:
+            direction = word
+        elif word.startswith("recipe="):
+            recipe = word[7:]
+        elif word.startswith("ug="):
+            ug_type = word[3:]
+        else:
+            break
+        rest = rest[1:]
+    return direction, recipe, ug_type, rest
 
 
 def _parse_one(text):
@@ -127,18 +159,7 @@ def _parse_one(text):
 
     elif verb == "place":
         (item, x, y), rest = _take(rest, 3, text)
-        direction = recipe = ug_type = None
-        while rest:
-            word = rest[0]
-            if word in DIRECTIONS:
-                direction = word
-            elif word.startswith("recipe="):
-                recipe = word[7:]
-            elif word.startswith("ug="):
-                ug_type = word[3:]
-            else:
-                break
-            rest = rest[1:]
+        direction, recipe, ug_type, rest = _placement(rest)
         order = game.place(
             item,
             _number(x),
@@ -182,6 +203,62 @@ def _parse_one(text):
     elif verb == "mirror":
         (x, y), rest = _take(rest, 2, text)
         order = game.mirror(_number(x), _number(y))
+
+    elif verb == "limit":
+        (x, y), rest = _take(rest, 2, text)
+        slots = None
+        if rest:
+            slots, rest = _count(rest[0]), rest[1:]
+        order = game.limit(_number(x), _number(y), slots)
+
+    elif verb == "ghost":
+        (item, x, y), rest = _take(rest, 3, text)
+        direction, recipe, ug_type, rest = _placement(rest)
+        order = game.ghost(
+            item,
+            _number(x),
+            _number(y),
+            dir=direction,
+            recipe=recipe,
+            ug_type=ug_type,
+        )
+
+    elif verb == "blueprint":
+        (name, x1, y1, x2, y2), rest = _take(rest, 5, text)
+        order = game.blueprint(name, *_numbers(x1, y1, x2, y2))
+
+    elif verb == "stamp":
+        (name, x, y), rest = _take(rest, 3, text)
+        direction = None
+        if rest and rest[0] in DIRECTIONS:
+            direction, rest = rest[0], rest[1:]
+        order = game.stamp(name, _number(x), _number(y), direction)
+
+    elif verb == "fill":
+        (x1, y1, x2, y2), rest = _take(rest, 4, text)
+        order = game.fill(*_numbers(x1, y1, x2, y2))
+
+    elif verb == "deconstruct":
+        (x1, y1, x2, y2), rest = _take(rest, 4, text)
+        what = None
+        if rest:
+            what, rest = rest[0], rest[1:]
+        order = game.deconstruct(*_numbers(x1, y1, x2, y2), what)
+
+    elif verb == "upgrade":
+        (x1, y1, x2, y2, source, target), rest = _take(rest, 6, text)
+        order = game.upgrade(*_numbers(x1, y1, x2, y2), source, target)
+
+    elif verb == "modules":
+        (x1, y1, x2, y2, item), rest = _take(rest, 5, text)
+        what = None
+        if rest:
+            what, rest = rest[0], rest[1:]
+        order = game.modules(*_numbers(x1, y1, x2, y2), item, what)
+
+    elif verb == "unmark":
+        (x1, y1, x2, y2), rest = _take(rest, 4, text)
+        order = game.unmark(*_numbers(x1, y1, x2, y2))
 
     elif verb == "launch":
         (x, y), rest = _take(rest, 2, text)

@@ -106,6 +106,14 @@ Fair play is a separate rule from safety. The CLI has no way to run arbitrary
 Lua, and the in-game operations only do what a player could do through their
 character, with the observation limits described above.
 
+The planning orders (`ghost`, `blueprint`, `stamp`, `deconstruct`, `upgrade`,
+`modules`, `unmark`) are what a player does from the map screen, so they take no
+time and need no item or reach, but only work on ground that has been seen.
+They build nothing: ghosts become buildings through robots, which need real
+items in their network, or through `fill`, which needs the item in the inventory
+and walks into reach. `limit` opens the chest, so it needs reach. Blueprints
+only come from areas of the running game; there is no way to import one.
+
 ## Installs, distribution and mods
 
 - Nothing about the machine is hard-coded. The game installs are found at run
