@@ -100,6 +100,7 @@ other people. Threats and what stops them:
 | The in-game script harms players' machines | It runs in Factorio's Lua sandbox (no file or network access), like any scenario script. |
 | The harness changes the user's game | Servers use their own write-data directory per session. The user's config, saves, mods and `player-data.json` are never read or written. |
 | Unwanted downloads or updates | The harness downloads nothing. Mods are copied from the user's own mods folder. |
+| The blueprint bench's Lua reaches a real game | It only runs in a temporary data directory started by `tools/bench/run.py`. `fx` cannot load it, it has no console commands and it is in no layer or session. See "Blueprint generator and bench". |
 | The agent edits the harness badly | Allowed, but on a git branch with tests passing and the user told (`AGENTS.md`). Lua changes go through `fx selftest`, which uses a throwaway session. |
 
 Fair play is a separate rule from safety. The CLI has no way to run arbitrary
@@ -113,6 +114,39 @@ They build nothing: ghosts become buildings through robots, which need real
 items in their network, or through `fill`, which needs the item in the inventory
 and walks into reach. `limit` opens the chest, so it needs reach. Blueprints
 only come from areas of the running game; there is no way to import one.
+
+## Blueprint generator and bench
+
+`tools/blueprints/` writes blueprint strings from Python layouts, for a person
+to import with the game's own button. There is still no order that imports a
+string, so the agent's fair-play limits do not change.
+
+`tools/bench/` checks a module without a player. It is the one place where the
+project runs Lua written to do what a character could not (build instantly,
+research everything, conjure items on a belt), so its limits are:
+
+- It runs only from `tools/bench/run.py`, with the headless game, in a new
+  temporary data directory, with base and its own mod enabled. That directory
+  is deleted afterwards.
+- The mod is not in any layer or session, `fx` has no way to load it, and it
+  has no console commands.
+- It has no network settings of its own: `--benchmark` starts no server.
+
+What it proves: a string imports, every entity places, power connects, and the
+output port reaches its rate from a cold start. What it does not prove: how a
+blueprint behaves when a player pastes it, or anything about pollution, biters
+or how long it takes to build. Benchmark mode writes no script output, so the
+report travels in the log. The production statistics read as zero there as
+well, so rates are counted at the output port's last belt tile. Researching
+everything would also grant inserter and mining bonuses a module does not have
+when it is built, so the bench sets them back to zero. Fluid ports set or drain
+one pipe each tick; a drain is a weaker test than a real consumer, so the oil
+block is also checked with real solid fuel plants on its light oil.
+A module that needs a logistic network (the silo's satellite machine) gets one
+from the bench: a roboport with robots and a storage chest kept stocked. The
+first launch would end the game as a victory, which stops a benchmark, so the
+bench resets the game state after each launch. `python3 tools/bench/run.py all`
+runs every module.
 
 ## Installs, distribution and mods
 
@@ -209,6 +243,10 @@ window, so it shows in the player list and needs no RCON from the host. Factorio
   servers playable.
 
 ## Known limits and next steps
+
+- `--bind 127.0.0.1` limits the game port, but a co-op session also keeps LAN
+  announcing unless created with `--no-lan`, which opens a second UDP socket on
+  all interfaces (seen with `ss` on 2.1.24). Use both for a local-only session.
 
 - Windows and macOS: written for (no signals, UTF-8 everywhere, `.cmd` launcher,
   Steam/registry discovery, process checks via the Win32 API), but not run yet.

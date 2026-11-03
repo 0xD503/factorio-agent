@@ -214,4 +214,10 @@ Development workflow:
 - `layers/core|base|mods/<mod>/` shipped knowledge and skills. User layer and
   sessions live in the data directory (`./fx doctor` prints it; `FXA_HOME`
   overrides).
+- `tools/blueprints/` generates blueprint strings for people to import
+  (`python3 tools/blueprints/build.py`, output in `dist/blueprints/`); its
+  `README.md` is the guide to the 6-hour rocket set.
+- `tools/bench/` tests one generated module in a throwaway game
+  (`python3 tools/bench/run.py NAME`). It is a development tool, not a way to
+  play: never load its mod into a session, or use it to get Lua into one.
 - `docs/USER_GUIDE.md` for people, `docs/DESIGN.md` for how it works and why.

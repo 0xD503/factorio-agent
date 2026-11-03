@@ -1,0 +1,9 @@
+{
+  "name": "fxa-bench",
+  "version": "0.1.0",
+  "title": "factorio-agent blueprint bench",
+  "author": "factorio-agent",
+  "description": "Development only, never used in a session.",
+  "factorio_version": "2.1",
+  "dependencies": ["base"]
+}
